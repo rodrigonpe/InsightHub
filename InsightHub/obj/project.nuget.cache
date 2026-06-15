@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Ymcpan8jdb8=",
+  "success": true,
+  "projectFilePath": "C:\\InsightHub\\InsightHub\\InsightHub.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Rodrigo\\.nuget\\packages\\npgsql\\10.0.3\\npgsql.10.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
