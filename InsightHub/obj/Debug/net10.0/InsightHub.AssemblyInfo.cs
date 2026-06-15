@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("InsightHub")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2057cca0c1035af800061711baa33bde8efd234f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d932e3f9d8c43051ba69c1cb4450e18d655e70d7")]
 [assembly: System.Reflection.AssemblyProductAttribute("InsightHub")]
 [assembly: System.Reflection.AssemblyTitleAttribute("InsightHub")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
