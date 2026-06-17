@@ -4,7 +4,7 @@ INSERT INTO users (
     email
 )
 VALUES (
-    gen_random_uuid(),
+    'bebc9d2b-b497-4a69-8823-2c525d65adbd',
     'Administrador',
     'rodrigo.nunes@insighthub.local'
 );
