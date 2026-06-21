@@ -30,7 +30,7 @@ internal class Program
                 message = "Conexão com PostgreSQL realizada com sucesso!"
             });
         });
-        app.MapGet("/holidays", async (int? year, IConfiguration config) =>
+        app.MapGet("/calendar/holidays", async (int? year, IConfiguration config) =>
         {
             var referenceYear = year ?? DateTime.Now.Year;
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -113,7 +113,7 @@ internal class Program
 
             return Results.Ok(holidays);
         });
-        app.MapGet("/holidays/{id:guid}", async (Guid id, IConfiguration config) =>
+        app.MapGet("/calendar/holidays/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
 
@@ -171,6 +171,11 @@ internal class Program
 
             return Results.Ok(holiday);
         });
+        app.MapPost("/calendar/holidays", async (CreateHolidayRequest request) =>
+        {
+            
+        }
+        );
         app.MapGet("/calendar/is-business-day", async (DateOnly date, string? state, string? city, IConfiguration config) =>
         {
             /*
@@ -296,11 +301,6 @@ internal class Program
             });
         });
         /*app.MapGet("/calendar/today", () => new
-        {
-            date = "2026-06-26",
-            DayOfWeek = "Sunday",
-        });
-        app.MapGet("/calendar/is-bussines-day?", () => new
         {
             date = "2026-06-26",
             DayOfWeek = "Sunday",
