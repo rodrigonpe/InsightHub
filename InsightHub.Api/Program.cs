@@ -16,6 +16,10 @@ internal class Program
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+        app.MapGet("/", () =>
+        {
+            return Results.Redirect("/swagger");
+        });
         app.MapGet("/health", () => new
         {
             status = "ok",
