@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/InsightHub.Api/">
+    <Project Path="InsightHub.Api/InsightHub.csproj" />
+  </Folder>
+  <Project Path="InsightHub.Admin/InsightHub.Admin.csproj" />
+</Solution>
