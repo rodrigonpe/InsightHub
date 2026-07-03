@@ -15,6 +15,10 @@ else
     <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">
     + Novo horário especial
     </button>
+    <label class="mb-3">
+        <input type="checkbox" @bind="includeInactive" @bind:after="LoadExceptions" />
+        Exibir inativos
+    </label>
     <table class="table">
         <thead>
             <tr>
@@ -38,8 +42,8 @@ else
                             ✏ Editar
                         </button>
 
-                        <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(item)">
-                            🗑 Excluir
+                        <button class="btn btn-sm btn-warning" @onclick="() => ConfirmDelete(item)">
+                            Inativar
                         </button>
                     </td>
                 </tr>
@@ -147,12 +151,12 @@ else
             }
             else
             {
-                <h3>Confirmar exclusão</h3>
+                    <h3>Confirmar inativação</h3>
 
-                <p>
-                    Deseja realmente excluir o horário especial de
-                    <strong>@exceptionToDelete.ExceptionDate.ToString("dd/MM/yyyy")</strong>?
-                </p>
+                    <p>
+                        Deseja realmente inativar o horário especial de
+                        <strong>@exceptionToDelete.ExceptionDate.ToString("dd/MM/yyyy")</strong>?
+                    </p>
 
                 <p>
                     <strong>Motivo:</strong> @exceptionToDelete.Reason
@@ -163,8 +167,8 @@ else
                         Cancelar
                     </button>
 
-                    <button class="btn btn-danger" @onclick="DeleteException">
-                        Excluir
+                    <button class="btn btn-warning" @onclick="DeleteException">
+                        Inativar
                     </button>
                 </div>
             }
@@ -262,13 +266,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(
-            "attendance/exceptions");
+        await LoadExceptions();
     }
     private CreateBusinessHourExceptionRequest? newException;
     private string? successMessage;
     private string? errorMessage;
     private bool isSaving;
+    private bool includeInactive;
 
     private void OpenCreateModal()
     {
@@ -326,8 +330,7 @@ else
             return;
         }
 
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(
-            "attendance/exceptions");
+        await LoadExceptions();
 
         successMessage = "Salvo!";
 
@@ -342,8 +345,8 @@ private bool isDeleting;
 private void ConfirmDelete(BusinessHourExceptionResponse item)
 {
     exceptionToDelete = item;
-    successMessage = null;
-    errorMessage = null;
+    successMessage = "✔ Inativado!";
+    errorMessage = "Erro ao inativar.";
 }
 
 private void CancelDelete()
@@ -458,6 +461,14 @@ private void OnEditOpenChanged(ChangeEventArgs e)
 
         exceptionToEdit = null;
         successMessage = null;
+    }
+    private async Task LoadExceptions()
+    {
+        var url = includeInactive
+            ? "attendance/exceptions?includeInactive=true"
+            : "attendance/exceptions";
+
+        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(url);
     }
 }
 <style>

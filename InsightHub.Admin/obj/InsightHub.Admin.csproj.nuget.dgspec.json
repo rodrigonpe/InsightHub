@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj": {}
+    "C:\\projetos\\insighthub\\insighthub.admin\\InsightHub.Admin.csproj": {}
   },
   "projects": {
-    "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj": {
+    "C:\\projetos\\insighthub\\insighthub.admin\\InsightHub.Admin.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj",
+        "projectUniqueName": "C:\\projetos\\insighthub\\insighthub.admin\\InsightHub.Admin.csproj",
         "projectName": "InsightHub.Admin",
-        "projectPath": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj",
-        "packagesPath": "C:\\Users\\Rodrigo\\.nuget\\packages\\",
-        "outputPath": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\obj\\",
+        "projectPath": "C:\\projetos\\insighthub\\insighthub.admin\\InsightHub.Admin.csproj",
+        "packagesPath": "C:\\Users\\Wakke\\.nuget\\packages\\",
+        "outputPath": "C:\\projetos\\insighthub\\insighthub.admin\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Rodrigo\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Wakke\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"

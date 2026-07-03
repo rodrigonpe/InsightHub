@@ -563,7 +563,7 @@ internal class Program
                 message = "Exceção de horário cadastrada com sucesso."
             });
         });
-        app.MapGet("/attendance/exceptions", async (IConfiguration config) =>
+        app.MapGet("/attendance/exceptions", async (bool? includeInactive,IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
 
@@ -583,12 +583,14 @@ internal class Program
                     created_at,
                     updated_at
                 FROM business_hour_exceptions
-                WHERE is_active = TRUE
+                WHERE (@includeInactive = TRUE OR is_active = TRUE)
                 ORDER BY exception_date;
             ";
-
+            
             await using var command = new NpgsqlCommand(sql, connection);
 
+            command.Parameters.AddWithValue("includeInactive", includeInactive == true);
+            
             await using var reader = await command.ExecuteReaderAsync();
 
             var exceptions = new List<object>();

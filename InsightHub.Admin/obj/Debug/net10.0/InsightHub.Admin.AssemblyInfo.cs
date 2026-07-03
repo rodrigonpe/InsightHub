@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("InsightHub.Admin")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+90eed20703a42d6a36e06bab30849128318f0f45")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+334309ce4ba3e48a0584e49c4b2c95eae6fe8424")]
 [assembly: System.Reflection.AssemblyProductAttribute("InsightHub.Admin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("InsightHub.Admin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
