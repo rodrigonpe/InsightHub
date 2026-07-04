@@ -45,7 +45,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Wakke\\.nuget\\packages\\": {}
+    "C:\\Users\\Rodrigo\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
@@ -53,11 +53,11 @@
       "projectUniqueName": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj",
       "projectName": "InsightHub.Admin",
       "projectPath": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\InsightHub.Admin.csproj",
-      "packagesPath": "C:\\Users\\Wakke\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\Rodrigo\\.nuget\\packages\\",
       "outputPath": "C:\\Projetos\\InsightHub\\InsightHub.Admin\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\Wakke\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\Rodrigo\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"

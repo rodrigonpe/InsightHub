@@ -11,4 +11,6 @@ public class BusinessHourExceptionResponse
     public string? Reason { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; }
+    public string Situation { get; set; } = string.Empty;
+    public string SituationLabel { get; set; } = string.Empty;
 }

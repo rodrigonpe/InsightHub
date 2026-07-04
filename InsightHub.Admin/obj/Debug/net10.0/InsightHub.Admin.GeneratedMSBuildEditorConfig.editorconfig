@@ -12,65 +12,65 @@ build_property.EntryPointFilePath =
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = InsightHub.Admin
 build_property.RootNamespace = InsightHub.Admin
-build_property.ProjectDir = C:\projetos\insighthub\insighthub.admin\
+build_property.ProjectDir = C:\Projetos\InsightHub\InsightHub.Admin\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.RazorLangVersion = 10.0
 build_property.SupportLocalizedComponentNames = 
 build_property.GenerateRazorMetadataSourceChecksumAttributes = 
-build_property.MSBuildProjectDirectory = C:\projetos\insighthub\insighthub.admin
+build_property.MSBuildProjectDirectory = C:\Projetos\InsightHub\InsightHub.Admin
 build_property._RazorSourceGeneratorDebug = 
 build_property.EffectiveAnalysisLevelStyle = 10.0
 build_property.EnableCodeStyleSeverity = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/App.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/App.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBcHAucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/Attendance.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/Attendance.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBdHRlbmRhbmNlLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/AttendanceExceptions.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/AttendanceExceptions.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBdHRlbmRhbmNlRXhjZXB0aW9ucy5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/Counter.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/Counter.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb3VudGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/Error.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/Error.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/Home.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/Home.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/NotFound.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/NotFound.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xOb3RGb3VuZC5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Pages/Weather.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Pages/Weather.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xXZWF0aGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Routes.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Routes.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/_Imports.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/_Imports.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xfSW1wb3J0cy5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/projetos/insighthub/insighthub.admin/Components/Layout/MainLayout.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Layout/MainLayout.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTWFpbkxheW91dC5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = b-8j8o13a7sx
 
-[C:/projetos/insighthub/insighthub.admin/Components/Layout/NavMenu.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Layout/NavMenu.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTmF2TWVudS5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = b-1a8nmocxwi
 
-[C:/projetos/insighthub/insighthub.admin/Components/Layout/ReconnectModal.razor]
+[C:/Projetos/InsightHub/InsightHub.Admin/Components/Layout/ReconnectModal.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcUmVjb25uZWN0TW9kYWwucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = b-smz8r6k0hv

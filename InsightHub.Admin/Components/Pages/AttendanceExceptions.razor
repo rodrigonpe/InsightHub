@@ -12,45 +12,63 @@
 }
 else
 {
-    <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">
-    + Novo horário especial
-    </button>
-    <label class="mb-3">
-        <input type="checkbox" @bind="includeInactive" @bind:after="LoadExceptions" />
-        Exibir inativos
-    </label>
+    <div class="d-flex align-items-center gap-3 mb-3">
+        <button class="btn btn-primary" @onclick="OpenCreateModal">
+            + Novo horário especial
+        </button>
+
+        <label class="mb-0">
+            <input type="checkbox" @bind="includeInactive" @bind:after="LoadExceptions" />
+            Exibir inativos
+        </label>
+    </div>
+
     <table class="table">
         <thead>
             <tr>
                 <th>Data</th>
-                <th>Status</th>
                 <th>Horário</th>
                 <th>Motivo</th>
+                <th>Situação</th> 
                 <th>Ações</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var item in exceptions)
             {
-                <tr>
+                <tr class="@(!item.IsActive ? "table-secondary" : string.Empty)">
                     <td>@item.ExceptionDate.ToString("dd/MM/yyyy")</td>
-                    <td>@(item.IsOpen ? "Aberto" : "Fechado")</td>
                     <td>@item.Schedule</td>
                     <td>@item.Reason</td>
+                    <td>@item.SituationLabel</td>
                     <td>
-                        <button class="btn btn-sm btn-primary" @onclick="() => OpenEditModal(item)">
-                            ✏ Editar
-                        </button>
+                        @if (item.IsActive)
+                        {
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick="() => OpenEditModal(item)">
+                                ✏ Editar
+                            </button>
 
-                        <button class="btn btn-sm btn-warning" @onclick="() => ConfirmDelete(item)">
-                            Inativar
-                        </button>
+                            <button class="btn btn-sm btn-warning"
+                                    @onclick="() => ConfirmStatusChange(item, false)">
+                                Inativar
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-success"
+                                    @onclick="() => ConfirmStatusChange(item, true)">
+                                ✔ Ativar
+                            </button>
+                        }
                     </td>
                 </tr>
             }
         </tbody>
     </table>
-    @if (newException is not null)
+}
+
+@if (newException is not null)
 {
     <div class="modal-backdrop-custom">
         <div class="modal-card">
@@ -84,7 +102,7 @@ else
                     <label>
                         <input type="checkbox"
                                checked="@newException.IsOpen"
-                               @onchange="OnOpenChanged" />
+                               @onchange="OnCreateOpenChanged" />
                         Aberto
                     </label>
                 </div>
@@ -137,45 +155,7 @@ else
         </div>
     </div>
 }
-@if (exceptionToDelete is not null)
-{
-    <div class="modal-backdrop-custom">
-        <div class="modal-card">
 
-            @if (isDeleting)
-            {
-                <div class="saving-box">
-                    <div class="spinner"></div>
-                    <p>Excluindo horário especial...</p>
-                </div>
-            }
-            else
-            {
-                    <h3>Confirmar inativação</h3>
-
-                    <p>
-                        Deseja realmente inativar o horário especial de
-                        <strong>@exceptionToDelete.ExceptionDate.ToString("dd/MM/yyyy")</strong>?
-                    </p>
-
-                <p>
-                    <strong>Motivo:</strong> @exceptionToDelete.Reason
-                </p>
-
-                <div class="modal-actions">
-                    <button class="btn btn-outline-secondary" @onclick="CancelDelete">
-                        Cancelar
-                    </button>
-
-                    <button class="btn btn-warning" @onclick="DeleteException">
-                        Inativar
-                    </button>
-                </div>
-            }
-
-        </div>
-    </div>
-}
 @if (exceptionToEdit is not null)
 {
     <div class="modal-backdrop-custom">
@@ -201,7 +181,9 @@ else
 
                 <div class="mb-3">
                     <label class="form-label">Data</label>
-                    <input class="form-control" type="date" @bind="exceptionToEdit.ExceptionDate" />
+                    <input class="form-control"
+                           type="date"
+                           @bind="exceptionToEdit.ExceptionDate" />
                 </div>
 
                 <div class="mb-3">
@@ -259,21 +241,85 @@ else
         </div>
     </div>
 }
+
+@if (selectedStatusException is not null)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-card">
+
+            @if (isChangingStatus)
+            {
+                <div class="saving-box">
+                    <div class="spinner"></div>
+                    <p>@(activateMode ? "Ativando horário especial..." : "Inativando horário especial...")</p>
+                </div>
+            }
+            else
+            {
+                <h3>@(activateMode ? "Confirmar ativação" : "Confirmar inativação")</h3>
+
+                <p>
+                    Deseja realmente @(activateMode ? "ativar" : "inativar") o horário especial de
+                    <strong>@selectedStatusException.ExceptionDate.ToString("dd/MM/yyyy")</strong>?
+                </p>
+
+                <p>
+                    <strong>Motivo:</strong> @selectedStatusException.Reason
+                </p>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">
+                        @errorMessage
+                    </div>
+                }
+
+                <div class="modal-actions">
+                    <button class="btn btn-outline-secondary" @onclick="CancelStatusChange">
+                        Cancelar
+                    </button>
+
+                    <button class="btn @(activateMode ? "btn-success" : "btn-warning")"
+                            @onclick="ChangeExceptionStatus">
+                        @(activateMode ? "Ativar" : "Inativar")
+                    </button>
+                </div>
+            }
+
+        </div>
+    </div>
 }
 
 @code {
+    private const string AdminUserId = "bebc9d2b-b497-4a69-8823-2c525d65adbd";
+
     private List<BusinessHourExceptionResponse>? exceptions;
+
+    private CreateBusinessHourExceptionRequest? newException;
+    private BusinessHourExceptionResponse? exceptionToEdit;
+    private BusinessHourExceptionResponse? selectedStatusException;
+
+    private string? successMessage;
+    private string? errorMessage;
+
+    private bool isSaving;
+    private bool includeInactive;
+    private bool activateMode;
+    private bool isChangingStatus;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadExceptions();
     }
-    private CreateBusinessHourExceptionRequest? newException;
-    private string? successMessage;
-    private string? errorMessage;
-    private bool isSaving;
-    private bool includeInactive;
 
+    private async Task LoadExceptions()
+    {
+        var url = includeInactive
+            ? "attendance/exceptions?includeInactive=true"
+            : "attendance/exceptions";
+
+        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(url);
+    }
     private void OpenCreateModal()
     {
         successMessage = null;
@@ -287,14 +333,12 @@ else
             EndTime = new TimeOnly(17, 0)
         };
     }
-
     private void CancelCreate()
     {
         newException = null;
         errorMessage = null;
     }
-
-    private void OnOpenChanged(ChangeEventArgs e)
+    private void OnCreateOpenChanged(ChangeEventArgs e)
     {
         if (newException is null)
             return;
@@ -312,15 +356,121 @@ else
         if (newException is null)
             return;
 
-        isSaving = true;
         errorMessage = null;
         successMessage = null;
 
-        newException.CreatedByUserId = Guid.Parse("bebc9d2b-b497-4a69-8823-2c525d65adbd");
+        if (newException.IsOpen &&
+            (!newException.StartTime.HasValue || !newException.EndTime.HasValue))
+        {
+            errorMessage = "Informe o horário inicial e final.";
+            return;
+        }
 
-        var response = await Http.PostAsJsonAsync(
-            "attendance/exceptions",
+        if (newException.IsOpen &&
+            newException.StartTime >= newException.EndTime)
+        {
+            errorMessage = "O horário inicial deve ser menor que o horário final.";
+            return;
+        }
+
+        isSaving = true;
+        newException.CreatedByUserId = Guid.Parse(AdminUserId);
+
+        HttpResponseMessage? response = await Http.PostAsJsonAsync(
+            requestUri: "attendance/exceptions",
             newException);
+
+        isSaving = false;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = await response.Content.ReadAsStringAsync();
+            return;
+        }
+
+        await LoadExceptions();
+
+        successMessage = "Salvo!";
+
+        await Task.Delay( millisecondsDelay: 900);
+
+        newException = null;
+        successMessage = null;
+    }
+    private void OpenEditModal(BusinessHourExceptionResponse item)
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        exceptionToEdit = new BusinessHourExceptionResponse
+        {
+            Id = item.Id,
+            ExceptionDate = item.ExceptionDate,
+            IsOpen = item.IsOpen,
+            StartTime = item.StartTime,
+            EndTime = item.EndTime,
+            Reason = item.Reason,
+            Description = item.Description,
+            Schedule = item.Schedule,
+            IsActive = item.IsActive
+        };
+    }
+    private void CancelEdit()
+    {
+        exceptionToEdit = null;
+        errorMessage = null;
+    }
+    private void OnEditOpenChanged(ChangeEventArgs e)
+    {
+        if (exceptionToEdit is null)
+            return;
+
+        exceptionToEdit.IsOpen = (bool)e.Value!;
+
+        if (!exceptionToEdit.IsOpen)
+        {
+            exceptionToEdit.StartTime = null;
+            exceptionToEdit.EndTime = null;
+        }
+    }
+    private async Task SaveEditException()
+    {
+        if (exceptionToEdit is null)
+            return;
+
+        errorMessage = null;
+        successMessage = null;
+
+        if (exceptionToEdit.IsOpen &&
+            (!exceptionToEdit.StartTime.HasValue || !exceptionToEdit.EndTime.HasValue))
+        {
+            errorMessage = "Informe o horário inicial e final.";
+            return;
+        }
+
+        if (exceptionToEdit.IsOpen &&
+            exceptionToEdit.StartTime >= exceptionToEdit.EndTime)
+        {
+            errorMessage = "O horário inicial deve ser menor que o horário final.";
+            return;
+        }
+
+        isSaving = true;
+        
+        var request = new
+        {
+            exceptionDate = exceptionToEdit.ExceptionDate,
+            isOpen = exceptionToEdit.IsOpen,
+            startTime = exceptionToEdit.StartTime,
+            endTime = exceptionToEdit.EndTime,
+            reason = exceptionToEdit.Reason,
+            description = exceptionToEdit.Description,
+            updatedByUserId = Guid.Parse(AdminUserId)
+        };
+
+        var response = await Http.PutAsJsonAsync(
+            $"attendance/exceptions/{exceptionToEdit.Id}",
+            request);
 
         isSaving = false;
 
@@ -336,260 +486,117 @@ else
 
         await Task.Delay(900);
 
-        newException = null;
-        successMessage = null;
-    }
-    private BusinessHourExceptionResponse? exceptionToDelete;
-private bool isDeleting;
-
-private void ConfirmDelete(BusinessHourExceptionResponse item)
-{
-    exceptionToDelete = item;
-    successMessage = "✔ Inativado!";
-    errorMessage = "Erro ao inativar.";
-}
-
-private void CancelDelete()
-{
-    exceptionToDelete = null;
-}
-
-    private async Task DeleteException()
-    {
-        if (exceptionToDelete is null)
-            return;
-
-        isDeleting = true;
-
-        var updatedByUserId = "bebc9d2b-b497-4a69-8823-2c525d65adbd";
-
-        var response = await Http.DeleteAsync(
-            $"attendance/exceptions/{exceptionToDelete.Id}?updatedByUserId={updatedByUserId}");
-
-        isDeleting = false;
-
-        if (!response.IsSuccessStatusCode)
-        {
-            errorMessage = await response.Content.ReadAsStringAsync();
-            return;
-        }
-
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(
-            "attendance/exceptions");
-
-        exceptionToDelete = null;
-        successMessage = "✔ Excluído!";
-    }
-    private BusinessHourExceptionResponse? exceptionToEdit;
-
-private void OpenEditModal(BusinessHourExceptionResponse item)
-{
-    successMessage = null;
-    errorMessage = null;
-
-    exceptionToEdit = new BusinessHourExceptionResponse
-    {
-        Id = item.Id,
-        ExceptionDate = item.ExceptionDate,
-        IsOpen = item.IsOpen,
-        StartTime = item.StartTime,
-        EndTime = item.EndTime,
-        Reason = item.Reason,
-        Description = item.Description,
-        Schedule = item.Schedule,
-        IsActive = item.IsActive
-    };
-}
-
-private void CancelEdit()
-{
-    exceptionToEdit = null;
-    errorMessage = null;
-}
-
-private void OnEditOpenChanged(ChangeEventArgs e)
-{
-    if (exceptionToEdit is null)
-        return;
-
-    exceptionToEdit.IsOpen = (bool)e.Value!;
-
-    if (!exceptionToEdit.IsOpen)
-    {
-        exceptionToEdit.StartTime = null;
-        exceptionToEdit.EndTime = null;
-    }
-}
-    private async Task SaveEditException()
-    {
-        if (exceptionToEdit is null)
-            return;
-
-        isSaving = true;
-        errorMessage = null;
-        successMessage = null;
-
-        var request = new
-        {
-            exceptionDate = exceptionToEdit.ExceptionDate,
-            isOpen = exceptionToEdit.IsOpen,
-            startTime = exceptionToEdit.StartTime,
-            endTime = exceptionToEdit.EndTime,
-            reason = exceptionToEdit.Reason,
-            description = exceptionToEdit.Description,
-            updatedByUserId = Guid.Parse("bebc9d2b-b497-4a69-8823-2c525d65adbd")
-        };
-
-        var response = await Http.PutAsJsonAsync(
-            $"attendance/exceptions/{exceptionToEdit.Id}",
-            request);
-
-        isSaving = false;
-
-        if (!response.IsSuccessStatusCode)
-        {
-            errorMessage = await response.Content.ReadAsStringAsync();
-            return;
-        }
-
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(
-            "attendance/exceptions");
-
-        successMessage = "Salvo!";
-
-        await Task.Delay(900);
-
         exceptionToEdit = null;
         successMessage = null;
     }
-    private async Task LoadExceptions()
+    private void ConfirmStatusChange(BusinessHourExceptionResponse item, bool activate)
     {
-        var url = includeInactive
-            ? "attendance/exceptions?includeInactive=true"
-            : "attendance/exceptions";
+        selectedStatusException = item;
+        activateMode = activate;
+        successMessage = null;
+        errorMessage = null;
+    }
+    private void CancelStatusChange()   
+    {
+        selectedStatusException = null;
+        errorMessage = null;
+    }
+    private async Task ChangeExceptionStatus()
+    {
+        if (selectedStatusException is null)
+            return;
 
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(url);
+        isChangingStatus = true;
+        errorMessage = null;
+
+        var action = activateMode ? "activate" : "deactivate";
+
+        var response = await Http.PutAsync(
+            $"attendance/exceptions/{selectedStatusException.Id}/{action}?updatedByUserId={AdminUserId}",
+            null);
+
+        isChangingStatus = false;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = await response.Content.ReadAsStringAsync();
+            return;
+        }
+
+        await LoadExceptions();
+
+        selectedStatusException = null;
+        successMessage = activateMode ? "✔ Ativado!" : "✔ Inativado!";
     }
 }
+
 <style>
-
-.modal-backdrop-custom{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,.45);
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    z-index:9999;
-}
-
-.modal-card{
-    width:450px;
-    background:white;
-    border-radius:12px;
-    padding:28px;
-    box-shadow:0 15px 40px rgba(0,0,0,.25);
-    animation:showModal .18s ease;
-}
-
-.day-title{
-    font-size:18px;
-    font-weight:600;
-    margin-bottom:20px;
-}
-
-.modal-actions{
-    display:flex;
-    justify-content:flex-end;
-    gap:10px;
-    margin-top:25px;
-}
-
-.saving-box,
-.success-box{
-    height:220px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-}
-
-.spinner{
-    width:42px;
-    height:42px;
-    border-radius:50%;
-    border:4px solid #d9d9d9;
-    border-top-color:#0d6efd;
-    animation:spin .8s linear infinite;
-    margin-bottom:20px;
-}
-
-.success-icon{
-    font-size:54px;
-    color:#198754;
-    margin-bottom:10px;
-}
-
-.switch-label{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    cursor:pointer;
-    user-select:none;
-}
-
-.switch-label input{
-    display:none;
-}
-
-.switch-slider{
-    width:48px;
-    height:26px;
-    background:#dc3545;
-    border-radius:30px;
-    position:relative;
-    transition:.2s;
-}
-
-.switch-slider::before{
-    content:"";
-    width:22px;
-    height:22px;
-    background:white;
-    border-radius:50%;
-    position:absolute;
-    top:2px;
-    left:2px;
-    transition:.2s;
-}
-
-.switch-label input:checked + .switch-slider{
-    background:#198754;
-}
-
-.switch-label input:checked + .switch-slider::before{
-    transform:translateX(22px);
-}
-
-.switch-text{
-    font-weight:600;
-    font-size:16px;
-}
-
-@@keyframes spin{
-    to{
-        transform:rotate(360deg);
+    .modal-backdrop-custom {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
     }
-}
 
-@@keyframes showModal{
-    from{
-        opacity:0;
-        transform:translateY(-15px) scale(.95);
+    .modal-card {
+        width: 450px;
+        background: white;
+        border-radius: 12px;
+        padding: 28px;
+        box-shadow: 0 15px 40px rgba(0,0,0,.25);
+        animation: showModal .18s ease;
     }
-    to{
-        opacity:1;
-        transform:translateY(0) scale(1);
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 25px;
     }
-}
+
+    .saving-box,
+    .success-box {
+        height: 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .spinner {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 4px solid #d9d9d9;
+        border-top-color: #0d6efd;
+        animation: spin .8s linear infinite;
+        margin-bottom: 20px;
+    }
+
+    .success-icon {
+        font-size: 54px;
+        color: #198754;
+        margin-bottom: 10px;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @@keyframes showModal {
+        from {
+            opacity: 0;
+            transform: translateY(-15px) scale(.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
 </style>
