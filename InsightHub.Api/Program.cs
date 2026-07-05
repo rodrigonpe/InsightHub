@@ -1,5 +1,11 @@
 using InsightHub.Services;
 using InsightHub.Api.Validators;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.OpenApi.Models;
 using Npgsql;
 internal class Program
 {
@@ -8,10 +14,60 @@ internal class Program
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "Bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = "Informe apenas o token JWT."
+            });
+
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+        });
+
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = builder.Configuration["Jwt:Issuer"],
+
+                    ValidateAudience = true,
+                    ValidAudience = builder.Configuration["Jwt:Audience"],
+
+                    ValidateLifetime = true,
+
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+                };
+            });
+
+        builder.Services.AddAuthorization();
 
         var app = builder.Build();
 
+        app.UseAuthentication();
+        app.UseAuthorization();
         /*
         if (app.Environment.IsDevelopment())
         {
@@ -21,6 +77,97 @@ internal class Program
         /*
         }
         */
+        app.MapPost("/auth/login", async (LoginRequest request, IConfiguration config) =>
+        {
+            var connectionString = config.GetConnectionString("DefaultConnection");
+
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            const string sql = @"
+                SELECT
+                    id,
+                    name,
+                    email,
+                    password_hash,
+                    role
+                FROM users
+                WHERE email = @email
+                AND is_active = TRUE
+                LIMIT 1;
+            ";
+
+            await using var command = new NpgsqlCommand(sql, connection);
+            command.Parameters.AddWithValue("email", request.Email);
+
+            await using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+            {
+                return Results.Unauthorized();
+            }
+
+            var userId = reader.GetGuid(0);
+            var name = reader.GetString(1);
+            var email = reader.GetString(2);
+            var passwordHash = reader.GetString(3);
+            var role = reader.GetString(4);
+
+            var passwordIsValid = BCrypt.Net.BCrypt.Verify(request.Password, passwordHash);
+
+            if (!passwordIsValid)
+            {
+                return Results.Unauthorized();
+            }
+
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, email),
+                new Claim(ClaimTypes.Email, email),
+                new Claim(ClaimTypes.Role, role),
+                new Claim(ClaimTypes.Name, name)
+            };
+
+            var credentials = new SigningCredentials(
+                key,
+                SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: config["Jwt:Issuer"],
+                audience: config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(1),
+                signingCredentials: credentials);
+
+            var jwt = new JwtSecurityTokenHandler()
+                .WriteToken(token);
+
+            return Results.Ok(new
+            {
+                token = jwt
+            });
+        });
+        app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+        {
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var name = user.FindFirst(ClaimTypes.Name)?.Value;
+            var email = user.FindFirst(ClaimTypes.Email)?.Value;
+            var role = user.FindFirst(ClaimTypes.Role)?.Value;
+
+            return Results.Ok(new
+            {
+                id = userId,
+                name,
+                email,
+                role
+            });
+        })
+        .RequireAuthorization();
         app.MapGet("/", () =>
         {
             return Results.Redirect("/swagger");
@@ -511,174 +658,177 @@ internal class Program
                 reason = defaultAvailable ? null : "OUTSIDE_BUSINESS_HOURS"
             });
         });
-        app.MapPost("/attendance/exceptions", async (CreateBusinessHourExceptionRequest request, IConfiguration config) =>
-        {
-            var id = Guid.NewGuid();
-
-            var today = DateOnly.FromDateTime(DateTime.Now);
-            var now = TimeOnly.FromDateTime(DateTime.Now);
-
-            if (request.ExceptionDate < today)
+        app.MapPost("/attendance/exceptions", async (CreateBusinessHourExceptionRequest request, IConfiguration config, HttpContext httpContext) =>
             {
-                return Results.BadRequest(new
-                {
-                    message = "Não é possível cadastrar exceções para datas passadas."
-                });
-            }
+                var id = Guid.NewGuid();
 
-            if (!request.IsOpen)
-            {
-                return Results.BadRequest(new
-                {
-                    message = "Para exceções de atendimento, informe um horário inicial e final."
-                });
-            }
+                var userId = Guid.Parse(
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-            if (!request.StartTime.HasValue || !request.EndTime.HasValue)
-            {
-                return Results.BadRequest(new
-                {
-                    message = "Informe o horário inicial e final da exceção."
-                });
-            }
+                var today = DateOnly.FromDateTime(DateTime.Now);
+                var now = TimeOnly.FromDateTime(DateTime.Now);
 
-            if (request.StartTime >= request.EndTime)
-            {
-                return Results.BadRequest(new
-                {
-                    message = "O horário inicial deve ser menor que o horário final."
-                });
-            }
-
-            if (request.ExceptionDate == today && request.EndTime.Value <= now)
-            {
-                return Results.BadRequest(new
-                {
-                    message = "Não é possível cadastrar uma exceção cujo horário final já passou."
-                });
-            }
-
-            var connectionString = config.GetConnectionString("DefaultConnection");
-
-            await using var connection = new NpgsqlConnection(connectionString);
-            await connection.OpenAsync();
-
-            var dayOfWeek = (int)request.ExceptionDate.DayOfWeek;
-
-            const string businessHourSql = @"
-                SELECT is_open, start_time, end_time
-                FROM business_hours
-                WHERE day_of_week = @dayOfWeek
-                AND is_active = TRUE
-                LIMIT 1;
-            ";
-
-            await using (var businessHourCommand = new NpgsqlCommand(businessHourSql, connection))
-            {
-                businessHourCommand.Parameters.AddWithValue("dayOfWeek", dayOfWeek);
-
-                await using var businessHourReader = await businessHourCommand.ExecuteReaderAsync();
-
-                if (!await businessHourReader.ReadAsync())
+                if (request.ExceptionDate < today)
                 {
                     return Results.BadRequest(new
                     {
-                        message = "Não há horário padrão configurado para o dia informado."
+                        message = "Não é possível cadastrar exceções para datas passadas."
                     });
                 }
 
-                var defaultIsOpen = businessHourReader.GetBoolean(0);
-
-                var defaultStartTime = businessHourReader.IsDBNull(1)
-                    ? (TimeOnly?)null
-                    : TimeOnly.FromTimeSpan(businessHourReader.GetTimeSpan(1));
-
-                var defaultEndTime = businessHourReader.IsDBNull(2)
-                    ? (TimeOnly?)null
-                    : TimeOnly.FromTimeSpan(businessHourReader.GetTimeSpan(2));
-
-                if (!defaultIsOpen || !defaultStartTime.HasValue || !defaultEndTime.HasValue)
+                if (!request.IsOpen)
                 {
                     return Results.BadRequest(new
                     {
-                        message = "Não há atendimento padrão no dia informado."
+                        message = "Para exceções de atendimento, informe um horário inicial e final."
                     });
                 }
 
-                if (request.StartTime.Value < defaultStartTime.Value ||
-                    request.EndTime.Value > defaultEndTime.Value)
+                if (!request.StartTime.HasValue || !request.EndTime.HasValue)
                 {
                     return Results.BadRequest(new
                     {
-                        message = $"O horário especial deve estar dentro do horário padrão do dia: {defaultStartTime:HH\\:mm} às {defaultEndTime:HH\\:mm}."
+                        message = "Informe o horário inicial e final da exceção."
                     });
                 }
-            }
 
-            const string checkSql = @"
-                SELECT COUNT(*)
-                FROM business_hour_exceptions
-                WHERE exception_date = @exceptionDate
-                AND is_active = TRUE;
-            ";
-
-            await using var checkCommand = new NpgsqlCommand(checkSql, connection);
-            checkCommand.Parameters.AddWithValue("exceptionDate", request.ExceptionDate.ToDateTime(TimeOnly.MinValue));
-
-            var existingCount = (long)(await checkCommand.ExecuteScalarAsync() ?? 0);
-
-            if (existingCount > 0)
-            {
-                return Results.Conflict(new
+                if (request.StartTime >= request.EndTime)
                 {
-                    message = "Já existe uma exceção ativa cadastrada para esta data."
-                });
-            }
+                    return Results.BadRequest(new
+                    {
+                        message = "O horário inicial deve ser menor que o horário final."
+                    });
+                }
 
-            const string sql = @"
-                INSERT INTO business_hour_exceptions (
+                if (request.ExceptionDate == today && request.EndTime.Value <= now)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = "Não é possível cadastrar uma exceção cujo horário final já passou."
+                    });
+                }
+
+                var connectionString = config.GetConnectionString("DefaultConnection");
+
+                await using var connection = new NpgsqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                var dayOfWeek = (int)request.ExceptionDate.DayOfWeek;
+
+                const string businessHourSql = @"
+                    SELECT is_open, start_time, end_time
+                    FROM business_hours
+                    WHERE day_of_week = @dayOfWeek
+                    AND is_active = TRUE
+                    LIMIT 1;
+                ";
+
+                await using (var businessHourCommand = new NpgsqlCommand(businessHourSql, connection))
+                {
+                    businessHourCommand.Parameters.AddWithValue("dayOfWeek", dayOfWeek);
+
+                    await using var businessHourReader = await businessHourCommand.ExecuteReaderAsync();
+
+                    if (!await businessHourReader.ReadAsync())
+                    {
+                        return Results.BadRequest(new
+                        {
+                            message = "Não há horário padrão configurado para o dia informado."
+                        });
+                    }
+
+                    var defaultIsOpen = businessHourReader.GetBoolean(0);
+
+                    var defaultStartTime = businessHourReader.IsDBNull(1)
+                        ? (TimeOnly?)null
+                        : TimeOnly.FromTimeSpan(businessHourReader.GetTimeSpan(1));
+
+                    var defaultEndTime = businessHourReader.IsDBNull(2)
+                        ? (TimeOnly?)null
+                        : TimeOnly.FromTimeSpan(businessHourReader.GetTimeSpan(2));
+
+                    if (!defaultIsOpen || !defaultStartTime.HasValue || !defaultEndTime.HasValue)
+                    {
+                        return Results.BadRequest(new
+                        {
+                            message = "Não há atendimento padrão no dia informado."
+                        });
+                    }
+
+                    if (request.StartTime.Value < defaultStartTime.Value ||
+                        request.EndTime.Value > defaultEndTime.Value)
+                    {
+                        return Results.BadRequest(new
+                        {
+                            message = $"O horário especial deve estar dentro do horário padrão do dia: {defaultStartTime:HH\\:mm} às {defaultEndTime:HH\\:mm}."
+                        });
+                    }
+                }
+
+                const string checkSql = @"
+                    SELECT COUNT(*)
+                    FROM business_hour_exceptions
+                    WHERE exception_date = @exceptionDate
+                    AND is_active = TRUE;
+                ";
+
+                await using var checkCommand = new NpgsqlCommand(checkSql, connection);
+                checkCommand.Parameters.AddWithValue("exceptionDate", request.ExceptionDate.ToDateTime(TimeOnly.MinValue));
+
+                var existingCount = (long)(await checkCommand.ExecuteScalarAsync() ?? 0);
+
+                if (existingCount > 0)
+                {
+                    return Results.Conflict(new
+                    {
+                        message = "Já existe uma exceção ativa cadastrada para esta data."
+                    });
+                }
+
+                const string sql = @"
+                    INSERT INTO business_hour_exceptions (
+                        id,
+                        exception_date,
+                        is_open,
+                        start_time,
+                        end_time,
+                        reason,
+                        description,
+                        is_active,
+                        created_by_user_id
+                    )
+                    VALUES (
+                        @id,
+                        @exceptionDate,
+                        @isOpen,
+                        @startTime,
+                        @endTime,
+                        @reason,
+                        @description,
+                        TRUE,
+                        @createdByUserId
+                    );
+                ";
+
+                await using var command = new NpgsqlCommand(sql, connection);
+
+                command.Parameters.AddWithValue("id", id);
+                command.Parameters.AddWithValue("exceptionDate", request.ExceptionDate.ToDateTime(TimeOnly.MinValue));
+                command.Parameters.AddWithValue("isOpen", request.IsOpen);
+                command.Parameters.AddWithValue("startTime", request.StartTime.Value.ToTimeSpan());
+                command.Parameters.AddWithValue("endTime", request.EndTime.Value.ToTimeSpan());
+                command.Parameters.AddWithValue("reason", (object?)request.Reason ?? DBNull.Value);
+                command.Parameters.AddWithValue("description", (object?)request.Description ?? DBNull.Value);
+                command.Parameters.AddWithValue("createdByUserId", userId);
+
+                await command.ExecuteNonQueryAsync();
+
+                return Results.Created($"/attendance/exceptions/{id}", new
+                {
                     id,
-                    exception_date,
-                    is_open,
-                    start_time,
-                    end_time,
-                    reason,
-                    description,
-                    is_active,
-                    created_by_user_id
-                )
-                VALUES (
-                    @id,
-                    @exceptionDate,
-                    @isOpen,
-                    @startTime,
-                    @endTime,
-                    @reason,
-                    @description,
-                    TRUE,
-                    @createdByUserId
-                );
-            ";
-
-            await using var command = new NpgsqlCommand(sql, connection);
-
-            command.Parameters.AddWithValue("id", id);
-            command.Parameters.AddWithValue("exceptionDate", request.ExceptionDate.ToDateTime(TimeOnly.MinValue));
-            command.Parameters.AddWithValue("isOpen", request.IsOpen);
-            command.Parameters.AddWithValue("startTime", request.StartTime.Value.ToTimeSpan());
-            command.Parameters.AddWithValue("endTime", request.EndTime.Value.ToTimeSpan());
-            command.Parameters.AddWithValue("reason", (object?)request.Reason ?? DBNull.Value);
-            command.Parameters.AddWithValue("description", (object?)request.Description ?? DBNull.Value);
-            command.Parameters.AddWithValue("createdByUserId", request.CreatedByUserId);
-
-            await command.ExecuteNonQueryAsync();
-
-            return Results.Created($"/attendance/exceptions/{id}", new
-            {
-                id,
-                message = "Exceção de horário cadastrada com sucesso."
+                    message = "Exceção de horário cadastrada com sucesso."
+                });
             });
-        });
         app.MapGet("/attendance/exceptions", async (bool? includeInactive,IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -764,7 +914,8 @@ internal class Program
             }
 
             return Results.Ok(exceptions);
-        });
+        })
+        .RequireAuthorization();
         app.MapGet("/attendance/exceptions/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -827,7 +978,8 @@ internal class Program
                 createdAt = reader.GetDateTime(8),
                 updatedAt = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9)
             });
-        });
+        })
+        .RequireAuthorization();
         app.MapDelete("/attendance/exceptions/{id:guid}", async (Guid id, Guid updatedByUserId, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -866,10 +1018,12 @@ internal class Program
                 message = "Exceção de horário inativada com sucesso."
             });
         });      
-        app.MapPut("/attendance/exceptions/{id:guid}", async (Guid id, UpdateBusinessHourExceptionRequest request, IConfiguration config) =>
+        app.MapPut("/attendance/exceptions/{id:guid}", async (Guid id, UpdateBusinessHourExceptionRequest request, IConfiguration config, HttpContext httpContext) =>
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
             var now = TimeOnly.FromDateTime(DateTime.Now);
+            var userId = Guid.Parse(
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             if (request.ExceptionDate < today)
             {
@@ -1047,7 +1201,7 @@ internal class Program
             command.Parameters.AddWithValue("endTime", request.EndTime.Value.ToTimeSpan());
             command.Parameters.AddWithValue("reason", (object?)request.Reason ?? DBNull.Value);
             command.Parameters.AddWithValue("description", (object?)request.Description ?? DBNull.Value);
-            command.Parameters.AddWithValue("updatedByUserId", request.UpdatedByUserId);
+            command.Parameters.AddWithValue("updatedByUserId", userId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
 
@@ -1064,10 +1218,13 @@ internal class Program
                 id,
                 message = "Exceção de horário atualizada com sucesso."
             });
-        });
-        app.MapPut("/attendance/exceptions/{id:guid}/deactivate", async (Guid id, Guid updatedByUserId, IConfiguration config) =>
+        })
+        .RequireAuthorization();
+        app.MapPut("/attendance/exceptions/{id:guid}/deactivate", async (Guid id, Guid updatedByUserId, IConfiguration config, HttpContext httpContext) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
+            var userId = Guid.Parse(
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             await using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
@@ -1085,7 +1242,7 @@ internal class Program
             await using var command = new NpgsqlCommand(sql, connection);
 
             command.Parameters.AddWithValue("id", id);
-            command.Parameters.AddWithValue("updatedByUserId", updatedByUserId);
+            command.Parameters.AddWithValue("updatedByUserId", userId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
 
@@ -1102,10 +1259,13 @@ internal class Program
                 id,
                 message = "Horário especial inativado com sucesso."
             });
-        });
-        app.MapPut("/attendance/exceptions/{id:guid}/activate", async (Guid id, Guid updatedByUserId, IConfiguration config) =>
+        })
+        .RequireAuthorization();
+        app.MapPut("/attendance/exceptions/{id:guid}/activate", async (Guid id, Guid updatedByUserId, IConfiguration config, HttpContext httpContext) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
+            var userId = Guid.Parse(
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             await using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
@@ -1182,7 +1342,7 @@ internal class Program
             await using var command = new NpgsqlCommand(sql, connection);
 
             command.Parameters.AddWithValue("id", id);
-            command.Parameters.AddWithValue("updatedByUserId", updatedByUserId);
+            command.Parameters.AddWithValue("updatedByUserId", userId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
 
@@ -1199,9 +1359,13 @@ internal class Program
                 id,
                 message = "Horário especial ativado com sucesso."
             });
-        });
-        app.MapPut("/attendance/business-hours/{dayOfWeek:int}", async (int dayOfWeek, UpdateBusinessHourRequest request, IConfiguration config) =>
+        })
+        .RequireAuthorization();
+        app.MapPut("/attendance/business-hours/{dayOfWeek:int}", async (int dayOfWeek, UpdateBusinessHourRequest request, IConfiguration config, HttpContext httpContext) =>
         {
+            var userId = Guid.Parse(
+            httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
             if (dayOfWeek < 0 || dayOfWeek > 6)
             {
                 return Results.BadRequest(new
@@ -1233,7 +1397,7 @@ internal class Program
             command.Parameters.AddWithValue("isOpen", request.IsOpen);
             command.Parameters.AddWithValue("startTime", request.StartTime.HasValue ? request.StartTime.Value.ToTimeSpan() : DBNull.Value);
             command.Parameters.AddWithValue("endTime", request.EndTime.HasValue ? request.EndTime.Value.ToTimeSpan() : DBNull.Value);
-            command.Parameters.AddWithValue("updatedByUserId", request.UpdatedByUserId);
+            command.Parameters.AddWithValue("updatedByUserId", userId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
 
@@ -1251,7 +1415,8 @@ internal class Program
                 dayName = GetDayName((short)dayOfWeek),
                 message = "Horário padrão atualizado com sucesso."
             });
-        });
+        })
+        .RequireAuthorization();
         app.MapGet("/attendance/business-hours", async (IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -1309,7 +1474,8 @@ internal class Program
             }
 
             return Results.Ok(businessHours);
-        });
+        })
+        .RequireAuthorization();
         /*app.MapGet("/calendar/today", () => new
         {
             date = "2026-06-26",
@@ -1317,14 +1483,17 @@ internal class Program
         }); */
         app.Run();       
     }
+    public record LoginRequest(
+        string Email,
+        string Password
+    );
     public record CreateBusinessHourExceptionRequest(
         DateOnly ExceptionDate,
         bool IsOpen,
         TimeOnly? StartTime,
         TimeOnly? EndTime,
         string? Reason,
-        string? Description,
-        Guid CreatedByUserId
+        string? Description
     );
     public record UpdateBusinessHourExceptionRequest(
     DateOnly ExceptionDate,
@@ -1332,14 +1501,12 @@ internal class Program
     TimeOnly? StartTime,
     TimeOnly? EndTime,
     string? Reason,
-    string? Description,
-    Guid UpdatedByUserId
+    string? Description
     );
     public record UpdateBusinessHourRequest(
         bool IsOpen,
         TimeOnly? StartTime,
-        TimeOnly? EndTime,
-        Guid UpdatedByUserId
+        TimeOnly? EndTime
     );
     static string GetDayName(short dayOfWeek)
     {

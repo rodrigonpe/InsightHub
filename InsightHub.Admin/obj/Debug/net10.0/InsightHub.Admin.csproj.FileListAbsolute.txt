@@ -84,3 +84,4 @@ C:\Projetos\InsightHub\InsightHub.Admin\obj\Debug\net10.0\compressed\k5b8u13aas-
 C:\Projetos\InsightHub\InsightHub.Admin\obj\Debug\net10.0\compressed\5to1kmtfn8-{0}-jj8uyg4cgr-jj8uyg4cgr.gz
 C:\Projetos\InsightHub\InsightHub.Admin\obj\Debug\net10.0\compressed\vsptu1j92h-{0}-notf2xhcfb-notf2xhcfb.gz
 C:\Projetos\InsightHub\InsightHub.Admin\obj\Debug\net10.0\compressed\nsobaftibl-{0}-63fj8s7r0e-63fj8s7r0e.gz
+C:\Projetos\InsightHub\InsightHub.Admin\bin\Debug\net10.0\appsettings.Production.json

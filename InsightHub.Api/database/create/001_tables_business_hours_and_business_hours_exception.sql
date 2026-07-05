@@ -55,9 +55,6 @@ CREATE TABLE business_hour_exceptions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uq_business_hour_exceptions_date
-        UNIQUE (exception_date),
-
     CONSTRAINT chk_business_hour_exceptions_time_required_when_open
         CHECK (
             (is_open = FALSE AND start_time IS NULL AND end_time IS NULL)
@@ -73,3 +70,8 @@ CREATE TABLE business_hour_exceptions (
         FOREIGN KEY (updated_by_user_id)
         REFERENCES users(id)
 );
+
+
+CREATE UNIQUE INDEX uq_business_hour_exceptions_active_date
+ON business_hour_exceptions (exception_date)
+WHERE is_active = TRUE;

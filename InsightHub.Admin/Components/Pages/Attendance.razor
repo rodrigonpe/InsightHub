@@ -1,11 +1,18 @@
 @page "/attendance"
-@rendermode InteractiveServer
-@using System.Net.Http.Json
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using InsightHub.Admin.Models
-@inject HttpClient Http
+@using InsightHub.Admin.Services.Api
+@inject BusinessHourService BusinessHourService
 
 <h1>Horários de Atendimento</h1>
-
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">
+        @errorMessage
+    </div>
+}
 @if (businessHours is null)
 {
     <p>Carregando horários...</p>
@@ -134,8 +141,15 @@ else
 
     private async Task LoadBusinessHours()
     {
-        businessHours = await Http.GetFromJsonAsync<List<BusinessHourResponse>>(
-            "attendance/business-hours");
+        try
+        {
+            errorMessage = null;
+            businessHours = await BusinessHourService.GetBusinessHoursAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
     }
 
     private void Edit(BusinessHourResponse businessHour)
@@ -186,23 +200,13 @@ else
         errorMessage = null;
         successMessage = null;
 
-        var request = new
-        {
-            isOpen = selectedBusinessHour.IsOpen,
-            startTime = selectedBusinessHour.StartTime,
-            endTime = selectedBusinessHour.EndTime,
-            updatedByUserId = Guid.Parse("bebc9d2b-b497-4a69-8823-2c525d65adbd")
-        };
-
-        var response = await Http.PutAsJsonAsync(
-            $"attendance/business-hours/{selectedBusinessHour.DayOfWeek}",
-            request);
+        var success = await BusinessHourService.UpdateBusinessHourAsync(selectedBusinessHour);
 
         isSaving = false;
 
-        if (!response.IsSuccessStatusCode)
+        if (!success)
         {
-            errorMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = "Não foi possível atualizar o horário padrão.";
             return;
         }
 
@@ -216,7 +220,6 @@ else
         successMessage = null;
     }
 }
-
 <style>
     .modal-backdrop-custom {
         position: fixed;

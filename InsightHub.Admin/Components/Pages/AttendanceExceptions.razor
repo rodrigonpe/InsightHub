@@ -1,8 +1,10 @@
 @page "/attendance/exceptions"
-@rendermode InteractiveServer
-@using System.Net.Http.Json
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using InsightHub.Admin.Models
-@inject HttpClient Http
+@using InsightHub.Admin.Services.Api
+@inject BusinessHourExceptionService ExceptionService
 
 <h1>Horários Especiais</h1>
 
@@ -292,33 +294,23 @@ else
 
 @code {
     private const string AdminUserId = "bebc9d2b-b497-4a69-8823-2c525d65adbd";
-
     private List<BusinessHourExceptionResponse>? exceptions;
-
     private CreateBusinessHourExceptionRequest? newException;
     private BusinessHourExceptionResponse? exceptionToEdit;
     private BusinessHourExceptionResponse? selectedStatusException;
-
     private string? successMessage;
     private string? errorMessage;
-
     private bool isSaving;
     private bool includeInactive;
     private bool activateMode;
     private bool isChangingStatus;
-
     protected override async Task OnInitializedAsync()
     {
         await LoadExceptions();
     }
-
     private async Task LoadExceptions()
     {
-        var url = includeInactive
-            ? "attendance/exceptions?includeInactive=true"
-            : "attendance/exceptions";
-
-        exceptions = await Http.GetFromJsonAsync<List<BusinessHourExceptionResponse>>(url);
+        exceptions = await ExceptionService.GetExceptionsAsync(includeInactive);
     }
     private void OpenCreateModal()
     {
@@ -376,15 +368,13 @@ else
         isSaving = true;
         newException.CreatedByUserId = Guid.Parse(AdminUserId);
 
-        HttpResponseMessage? response = await Http.PostAsJsonAsync(
-            requestUri: "attendance/exceptions",
-            newException);
+        var result = await ExceptionService.CreateAsync(newException);
 
         isSaving = false;
 
-        if (!response.IsSuccessStatusCode)
+        if (!result.Success)
         {
-            errorMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = result.Error;
             return;
         }
 
@@ -456,27 +446,14 @@ else
         }
 
         isSaving = true;
-        
-        var request = new
-        {
-            exceptionDate = exceptionToEdit.ExceptionDate,
-            isOpen = exceptionToEdit.IsOpen,
-            startTime = exceptionToEdit.StartTime,
-            endTime = exceptionToEdit.EndTime,
-            reason = exceptionToEdit.Reason,
-            description = exceptionToEdit.Description,
-            updatedByUserId = Guid.Parse(AdminUserId)
-        };
 
-        var response = await Http.PutAsJsonAsync(
-            $"attendance/exceptions/{exceptionToEdit.Id}",
-            request);
+        var result = await ExceptionService.UpdateAsync(exceptionToEdit);
 
         isSaving = false;
 
-        if (!response.IsSuccessStatusCode)
+        if (!result.Success)
         {
-            errorMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = result.Error;
             return;
         }
 
@@ -511,17 +488,18 @@ else
 
         var action = activateMode ? "activate" : "deactivate";
 
-        var response = await Http.PutAsync(
-            $"attendance/exceptions/{selectedStatusException.Id}/{action}?updatedByUserId={AdminUserId}",
-            null);
+        var result = await ExceptionService.ChangeStatusAsync(
+            selectedStatusException.Id,
+            activateMode);
 
         isChangingStatus = false;
 
-        if (!response.IsSuccessStatusCode)
+        if (!result.Success)
         {
-            errorMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = result.Error;
             return;
         }
+
 
         await LoadExceptions();
 

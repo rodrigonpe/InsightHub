@@ -1,0 +1,41 @@
+@page "/"
+@page "/login"
+
+<PageTitle>Login</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h2>InsightHub</h2>
+        <p>Acesse sua conta</p>
+
+        @if (HasError)
+        {
+            <div class="alert alert-danger">
+                E-mail ou senha inválidos.
+            </div>
+        }
+
+        <form method="post" action="/login">
+            <div class="mb-3">
+                <label class="form-label">E-mail</label>
+                <input class="form-control" name="Email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Senha</label>
+                <input class="form-control" type="password" name="Password" />
+            </div>
+
+            <button class="btn btn-primary w-100" type="submit">
+                Entrar
+            </button>
+        </form>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private bool HasError => Error == "1";
+}

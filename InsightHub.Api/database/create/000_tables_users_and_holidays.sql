@@ -1,13 +1,30 @@
-/*First table*/
+/* User Roles */
+CREATE TYPE user_role AS ENUM (
+    'ADMINISTRATOR',
+    'SUPERVISOR',
+    'SUPPORT'
+);
+
+/* First table */
 CREATE TABLE users (
     id UUID PRIMARY KEY,
+
     name VARCHAR(200) NOT NULL,
+
     email VARCHAR(255) NOT NULL UNIQUE,
+
+    password_hash TEXT NOT NULL,
+
+    role user_role NOT NULL DEFAULT 'ADMINISTRATOR',
+
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-/*Second table*/
+
+/* Second table */
 CREATE TABLE holidays (
     id UUID PRIMARY KEY,
 
@@ -30,9 +47,11 @@ CREATE TABLE holidays (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
     created_by_user_id UUID NOT NULL,
+
     updated_by_user_id UUID,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT chk_holidays_scope
