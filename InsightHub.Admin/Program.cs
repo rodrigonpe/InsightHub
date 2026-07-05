@@ -24,12 +24,12 @@ builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddHttpClient("InsightHubApi", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:5283/");
+    client.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"]!);
 });
 
 builder.Services.AddHttpClient("InsightHubApiAnonymous", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:5283/");
+    client.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"]!);
 });
 
 builder.Services.AddScoped(sp =>
