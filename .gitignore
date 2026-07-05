@@ -1,36 +1,61 @@
-# Build
+# Build .NET
 bin/
 obj/
 **/bin/
 **/obj/
 
-# Visual Studio
+# Visual Studio / VS Code
 .vs/
-
-# VS Code
 .vscode/
-
-# Rider
-.idea/
-
-# User-specific files
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 
+# Rider / JetBrains
+.idea/
+
 # Logs
 *.log
+logs/
 
 # NuGet
 packages/
+*.nupkg
+.nuget/
+
+# Publish / Deploy local
+publish/
+artifacts/
+appsettings.Production.json
+appsettings.Local.json
+
+# User Secrets / sensitive
+**/secrets.json
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Fly.io local/generated files
+.fly/
+*.pem
+
+# PostgreSQL / database dumps
+*.dump
+*.backup
+*.sql
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# User Secrets
-**/secrets.json
-
-# Publish
-publish/
+# Test results / coverage
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
