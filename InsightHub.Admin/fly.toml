@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for insighthub-admin on 2026-07-05T12:39:20-03:00
+# fly.toml app configuration file generated for insighthub-admin on 2026-07-05T16:34:35Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -17,5 +17,6 @@ primary_region = 'gru'
 
 [[vm]]
   memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512
