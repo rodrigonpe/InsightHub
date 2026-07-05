@@ -1,4 +1,36 @@
+# Build
 bin/
 obj/
 **/bin/
 **/obj/
+
+# Visual Studio
+.vs/
+
+# VS Code
+.vscode/
+
+# Rider
+.idea/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# NuGet
+packages/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# User Secrets
+**/secrets.json
+
+# Publish
+publish/
