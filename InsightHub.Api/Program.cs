@@ -1,4 +1,5 @@
 using InsightHub.Services;
+using InsightHub.Api.Models.Requests;
 using InsightHub.Api.Validators;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -147,6 +148,25 @@ internal class Program
                 token = jwt
             });
         });
+        app.MapPost("/users/generate-password-hash", (GeneratePasswordHashRequest request) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Password))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "A senha é obrigatória."
+                });
+            }
+
+            var hash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+            return Results.Ok(new
+            {
+                passwordHash = hash
+            });
+        })
+        //.RequireAuthorization()
+        .WithName("GeneratePasswordHash");
         app.MapGet("/auth/me", (ClaimsPrincipal user) =>
         {
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
