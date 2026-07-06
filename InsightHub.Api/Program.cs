@@ -68,15 +68,10 @@ internal class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
-        /*
-        if (app.Environment.IsDevelopment())
-        {
-        */
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        /*
-        }
-        */
+ 
+        app.UseSwagger();
+        app.UseSwaggerUI();
+  
         app.MapPost("/auth/login", async (LoginRequest request, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
