@@ -48,6 +48,10 @@ docker-compose.override.yml
 *.backup
 *.sql
 
+# Permitir scripts SQL da pasta database
+!database/
+!database/**/*.sql
+
 # OS
 .DS_Store
 Thumbs.db
