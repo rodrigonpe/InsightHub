@@ -3,7 +3,7 @@
 @using Spillgebees.Blazor.RichTextEditor.Components
 @using Spillgebees.Blazor.RichTextEditor.Components.Toolbar
 @using Microsoft.AspNetCore.Components
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Authorization
