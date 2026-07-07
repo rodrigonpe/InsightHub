@@ -1,0 +1,243 @@
+@page "/bot-announcements/new"
+@page "/bot-announcements/{Id:guid}"
+@using Spillgebees.Blazor.RichTextEditor.Components
+@using Spillgebees.Blazor.RichTextEditor.Components.Toolbar
+@using Microsoft.AspNetCore.Components
+@rendermode InteractiveServer
+
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize]
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Comunicado</PageTitle>
+
+<h3>@(IsNew ? "Novo Comunicado" : "Editar Comunicado")</h3>
+
+<EditForm Model="@Model" OnValidSubmit="@Save" FormName="BotAnnouncementForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">
+            @errorMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success mt-3">
+            @successMessage
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">Informações Gerais</div>
+
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Título</label>
+                        <InputText class="form-control"
+                                   @bind-Value="Model.Title" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <InputSelect class="form-select" @bind-Value="Model.Type">
+                            <option value="INFO">Informativo</option>
+                            <option value="WARNING">Aviso</option>
+                            <option value="MAINTENANCE">Manutenção</option>
+                            <option value="PAUSE">Pausa</option>
+                            <option value="CAMPAIGN">Campanha</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <InputSelect class="form-select" @bind-Value="Model.Reason">
+                            <option value="">Selecione...</option>
+                            <option value="MAINTENANCE">Manutenção</option>
+                            <option value="POWER_OUTAGE">Falta de energia</option>
+                            <option value="INSTABILITY">Instabilidade</option>
+                            <option value="HOLIDAY">Feriado</option>
+                            <option value="EMERGENCY">Emergência</option>
+                            <option value="OTHER">Outros</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Prioridade</label>
+                        <InputNumber class="form-control" @bind-Value="Model.Priority" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <InputSelect class="form-select" @bind-Value="Model.Status">
+                            <option value="ACTIVE">Ativo</option>
+                            <option value="INACTIVE">Inativo</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="Model.StopBot" />
+                        <label class="form-check-label">Interromper atendimento</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">Vigência</div>
+
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Início</label>
+                        <InputDate class="form-control" @bind-Value="Model.StartsAt" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Expiração</label>
+                        <InputDate class="form-control" @bind-Value="Model.ExpiresAt" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div class="row">
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">Mensagem</div>
+
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Mensagem HTML</label>
+                    <RichTextEditor @bind-Content="Model.MessageHtml"
+                        @bind-Text="Model.MessageText"
+                        ToolbarOptions="@ToolbarOptions.BasicToolbarOptions"
+                        Theme="@QuillTheme.Snow" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">
+                Pré-visualização
+            </div>
+
+            <div class="card-body">
+                @if (string.IsNullOrWhiteSpace(Model.MessageHtml))
+                {
+                    <div class="text-muted">
+                        A pré-visualização aparecerá aqui conforme você preencher a mensagem HTML.
+                    </div>
+                }
+                else
+                {
+                    <div class="border rounded p-3 bg-light">
+                        @((MarkupString)Model.MessageHtml)
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary">
+            Salvar
+        </button>
+
+        <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">
+            Cancelar
+        </button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private bool IsNew => Id is null;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    private BotAnnouncementModel Model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsNew)
+        {
+            var result = await Http.GetFromJsonAsync<BotAnnouncementModel>(
+                $"/bot/announcements/{Id}");
+
+            if (result is not null)
+            {
+                Model = result;
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            HttpResponseMessage response;
+
+            if (IsNew)
+            {
+                response = await Http.PostAsJsonAsync("/bot/announcements", Model);
+            }
+            else
+            {
+                response = await Http.PutAsJsonAsync($"/bot/announcements/{Id}", Model);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiError = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Erro ao salvar comunicado. Status: {(int)response.StatusCode}. Retorno: {apiError}";
+                return;
+            }
+
+            Navigation.NavigateTo("/bot-announcements");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erro inesperado ao salvar comunicado: {ex.Message}";
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/bot-announcements");
+    }
+
+    public class BotAnnouncementModel
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Type { get; set; } = "INFO";
+        public string Status { get; set; } = "ACTIVE";
+        public string? Reason { get; set; }
+        public int Priority { get; set; } = 0;
+        public bool StopBot { get; set; }
+        public string MessageHtml { get; set; } = "";
+        public string? MessageText { get; set; }
+        public DateTime? StartsAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+    }
+}

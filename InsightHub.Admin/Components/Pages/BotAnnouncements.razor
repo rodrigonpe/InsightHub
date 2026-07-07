@@ -1,0 +1,111 @@
+@page "/bot-announcements"
+@using System.Net.Http.Json
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@inject HttpClient Http
+
+<PageTitle>Comunicados do Bot</PageTitle>
+
+<h3>Comunicados do Bot</h3>
+
+<div class="mb-3">
+    <a class="btn btn-primary" href="/bot-announcements/new">
+        Novo comunicado
+    </a>
+</div>
+
+@if (isLoading)
+{
+    <p>Carregando comunicados...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (announcements.Count == 0)
+{
+    <div class="alert alert-info">
+        Nenhum comunicado cadastrado.
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Prioridade</th>
+                <th>Interrompe?</th>
+                <th>Início</th>
+                <th>Expiração</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in announcements)
+            {
+                <tr>
+                    <td>@item.Title</td>
+                    <td>@item.Type</td>
+                    <td>@item.Status</td>
+                    <td>@item.Priority</td>
+                    <td>@(item.StopBot ? "Sim" : "Não")</td>
+                    <td>@FormatDate(item.StartsAt)</td>
+                    <td>@FormatDate(item.ExpiresAt)</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="/bot-announcements/@item.Id">
+                            Editar
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<BotAnnouncementListItem> announcements = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<BotAnnouncementListItem>>("/bot/announcements");
+            announcements = result ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erro ao carregar comunicados: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string FormatDate(DateTime? date)
+    {
+        return date.HasValue
+            ? date.Value.ToString("dd/MM/yyyy HH:mm")
+            : "-";
+    }
+
+    public class BotAnnouncementListItem
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string? Reason { get; set; }
+        public int Priority { get; set; }
+        public bool StopBot { get; set; }
+        public DateTime? StartsAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+}

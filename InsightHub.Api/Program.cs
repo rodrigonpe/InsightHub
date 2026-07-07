@@ -1820,7 +1820,7 @@ internal class Program
             return Results.Ok(announcements);
 
         })
-        .RequireAuthorization();
+        /*.RequireAuthorization()*/;
         app.MapGet("/bot/announcements/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -1902,7 +1902,7 @@ internal class Program
             });
 
         })
-        .RequireAuthorization();
+        /*.RequireAuthorization()*/;
         app.MapPut("/bot/announcements/{id:guid}", async (Guid id, UpdateBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
         {
             var userIdClaim = user.FindFirst("sub")?.Value

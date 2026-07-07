@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<AuthTokenHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -25,7 +26,8 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpClient("InsightHubApi", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"]!);
-});
+})
+.AddHttpMessageHandler<AuthTokenHandler>();
 
 builder.Services.AddHttpClient("InsightHubApiAnonymous", client =>
 {
