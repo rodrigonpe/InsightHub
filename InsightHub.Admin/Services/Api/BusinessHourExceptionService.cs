@@ -67,7 +67,7 @@ public class BusinessHourExceptionService
         Description = exception.Description
     };
 
-        var response = await _http.PutAsJsonAsync(
+        var response = await _http.PatchAsJsonAsync(
             $"attendance/exceptions/{exception.Id}",
             request);
 
@@ -83,7 +83,7 @@ public class BusinessHourExceptionService
 
         var action = activate ? "activate" : "deactivate";
 
-        var response = await _http.PutAsync(
+        var response = await _http.PatchAsync(
             $"attendance/exceptions/{id}/{action}",
             null);
 

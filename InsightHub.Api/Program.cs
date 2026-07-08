@@ -155,7 +155,8 @@ internal class Program
             {
                 token = jwt
             });
-        });
+        })
+        .WithTags("Auth");
         app.MapPost("/users/generate-password-hash", (GeneratePasswordHashRequest request) =>
         {
             if (string.IsNullOrWhiteSpace(request.Password))
@@ -174,7 +175,8 @@ internal class Program
             });
         })
         //.RequireAuthorization()
-        .WithName("GeneratePasswordHash");
+        .WithName("GeneratePasswordHash")
+        .WithTags("Auth");
         app.MapGet("/auth/me", (ClaimsPrincipal user) =>
         {
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -190,22 +192,26 @@ internal class Program
                 role
             });
         })
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .WithTags("Auth");
         app.MapGet("/", () =>
         {
             return Results.Redirect("/swagger");
-        });
+        })
+        .WithTags("Health");
         app.MapGet("/health", () => new
         {
             status = "ok",
             service = "InsightHub",
             version = "1.0.0"
-        });
+        })
+        .WithTags("Health");
         app.MapGet("/about", () => new
         {
             name = "InsightHub",
             description = "Customer Support Intelligence Platform",
-        });
+        })
+        .WithTags("Health");
         app.MapGet("/db-test", async (IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -217,7 +223,8 @@ internal class Program
             {
                 message = "Conexão com PostgreSQL realizada com sucesso!"
             });
-        });
+        })
+        .WithTags("Health");
         app.MapGet("/calendar/holidays", async (int? year, IConfiguration config) =>
         {
             var referenceYear = year ?? DateTime.Now.Year;
@@ -300,7 +307,8 @@ internal class Program
             }
 
             return Results.Ok(holidays);
-        });
+        })
+        .WithTags("Holidays");
         app.MapGet("/calendar/holidays/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -358,7 +366,8 @@ internal class Program
             };
 
             return Results.Ok(holiday);
-        });
+        })
+        .WithTags("Holidays");
         app.MapGet("/calendar/is-business-day", async (DateOnly date, string? state, string? city, IConfiguration config) =>
         {
             /*
@@ -482,7 +491,8 @@ internal class Program
                 holidayName = (string?)null,
                 scope = (string?)null
             });
-        });
+        })
+        .WithTags("Holidays");
         app.MapGet("/attendance/availability", async (DateTime? datetime, string? state, string? city, IConfiguration config) =>
         {
             var currentDateTime = datetime ?? DateTime.Now;
@@ -680,7 +690,8 @@ internal class Program
                 endTime = defaultEndTime?.ToString("HH:mm"),
                 reason = defaultAvailable ? null : "OUTSIDE_BUSINESS_HOURS"
             });
-        });
+        })
+        .WithTags("Availability");
         app.MapPost("/attendance/exceptions", async (CreateBusinessHourExceptionRequest request, IConfiguration config, HttpContext httpContext) =>
             {
                 var id = Guid.NewGuid();
@@ -851,7 +862,8 @@ internal class Program
                     id,
                     message = "Exceção de horário cadastrada com sucesso."
                 });
-            });
+            })
+        .WithTags("Attendance - Exceptions");
         app.MapGet("/attendance/exceptions", async (bool? includeInactive,IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -938,7 +950,8 @@ internal class Program
 
             return Results.Ok(exceptions);
         })
-        .RequireAuthorization();
+        .RequireAuthorization()
+        .WithTags("Attendance - Exceptions");
         app.MapGet("/attendance/exceptions/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -1002,8 +1015,9 @@ internal class Program
                 updatedAt = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9)
             });
         })
+        .WithTags("Attendance - Exceptions")
         .RequireAuthorization();
-        app.MapDelete("/attendance/exceptions/{id:guid}", async (Guid id, Guid updatedByUserId, IConfiguration config) =>
+        app.MapDelete("/attendance/exceptions/{id:guid}", async (Guid id, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
 
@@ -1011,19 +1025,12 @@ internal class Program
             await connection.OpenAsync();
 
             const string sql = @"
-                UPDATE business_hour_exceptions
-                SET
-                    is_active = FALSE,
-                    updated_by_user_id = @updatedByUserId,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = @id
-                AND is_active = TRUE;
+                DELETE FROM business_hour_exceptions
+                WHERE id = @id;
             ";
 
             await using var command = new NpgsqlCommand(sql, connection);
-
             command.Parameters.AddWithValue("id", id);
-            command.Parameters.AddWithValue("updatedByUserId", updatedByUserId);
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
 
@@ -1031,16 +1038,18 @@ internal class Program
             {
                 return Results.NotFound(new
                 {
-                    message = "Exceção de horário não encontrada ou já inativa."
+                    message = "Exceção de horário não encontrada."
                 });
             }
 
             return Results.Ok(new
             {
                 id,
-                message = "Exceção de horário inativada com sucesso."
+                message = "Exceção de horário excluída permanentemente."
             });
-        });      
+        })
+        .WithTags("Attendance - Exceptions")
+        .RequireAuthorization();      
         app.MapPut("/attendance/exceptions/{id:guid}", async (Guid id, UpdateBusinessHourExceptionRequest request, IConfiguration config, HttpContext httpContext) =>
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -1242,12 +1251,14 @@ internal class Program
                 message = "Exceção de horário atualizada com sucesso."
             });
         })
+        .WithTags("Attendance - Exceptions")
         .RequireAuthorization();
-        app.MapPut("/attendance/exceptions/{id:guid}/deactivate", async (Guid id, Guid updatedByUserId, IConfiguration config, HttpContext httpContext) =>
+        app.MapPatch("/attendance/exceptions/{id:guid}/deactivate", async (Guid id, IConfiguration config, HttpContext httpContext) =>
         {
-            var connectionString = config.GetConnectionString("DefaultConnection");
             var userId = Guid.Parse(
                 httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var connectionString = config.GetConnectionString("DefaultConnection");
 
             await using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
@@ -1283,12 +1294,14 @@ internal class Program
                 message = "Horário especial inativado com sucesso."
             });
         })
-        .RequireAuthorization();
-        app.MapPut("/attendance/exceptions/{id:guid}/activate", async (Guid id, Guid updatedByUserId, IConfiguration config, HttpContext httpContext) =>
+        .WithTags("Attendance - Exceptions")
+        .RequireAuthorization();        
+        app.MapPatch("/attendance/exceptions/{id:guid}/activate", async (Guid id, IConfiguration config, HttpContext httpContext) =>
         {
-            var connectionString = config.GetConnectionString("DefaultConnection");
             var userId = Guid.Parse(
                 httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var connectionString = config.GetConnectionString("DefaultConnection");
 
             await using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync();
@@ -1383,6 +1396,7 @@ internal class Program
                 message = "Horário especial ativado com sucesso."
             });
         })
+        .WithTags("Attendance - Exceptions")
         .RequireAuthorization();
         app.MapPut("/attendance/business-hours/{dayOfWeek:int}", async (int dayOfWeek, UpdateBusinessHourRequest request, IConfiguration config, HttpContext httpContext) =>
         {
@@ -1439,6 +1453,7 @@ internal class Program
                 message = "Horário padrão atualizado com sucesso."
             });
         })
+        .WithTags("Attendance - Business Hours")
         .RequireAuthorization();
         app.MapGet("/attendance/business-hours", async (IConfiguration config) =>
         {
@@ -1498,6 +1513,7 @@ internal class Program
 
             return Results.Ok(businessHours);
         })
+        .WithTags("Attendance - Business Hours")
         .RequireAuthorization();
         app.MapPost("/bot/announcements", async (CreateBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
         {
@@ -1699,6 +1715,7 @@ internal class Program
                 throw;
             }
         })
+        .WithTags("Bot - Announcements")
         .RequireAuthorization();
         app.MapGet("/bot/announcements/active", async (IConfiguration config) =>
         {
@@ -1757,7 +1774,8 @@ internal class Program
                     ? (DateTime?)null
                     : reader.GetDateTime(reader.GetOrdinal("expires_at"))
             });
-        });
+        })
+        .WithTags("Bot - Announcements");
         app.MapGet("/bot/announcements", async (IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -1820,6 +1838,7 @@ internal class Program
             return Results.Ok(announcements);
 
         })
+        .WithTags("Bot - Announcements")
         /*.RequireAuthorization()*/;
         app.MapGet("/bot/announcements/{id:guid}", async (Guid id, IConfiguration config) =>
         {
@@ -1902,6 +1921,7 @@ internal class Program
             });
 
         })
+        .WithTags("Bot - Announcements")
         /*.RequireAuthorization()*/;
         app.MapPut("/bot/announcements/{id:guid}", async (Guid id, UpdateBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
         {
@@ -2142,6 +2162,7 @@ internal class Program
             }
 
         })
+        .WithTags("Bot - Announcements")
         .RequireAuthorization();
         app.MapPatch("/bot/announcements/{id:guid}/deactivate", async (Guid id, IConfiguration config, ClaimsPrincipal user) =>
         {
@@ -2313,6 +2334,7 @@ internal class Program
             }
 
         })
+        .WithTags("Bot - Announcements")
         .RequireAuthorization();
         app.MapPatch("/bot/announcements/{id:guid}/activate", async (Guid id, IConfiguration config, ClaimsPrincipal user) =>
         {
@@ -2526,6 +2548,7 @@ internal class Program
             }
 
         })
+        .WithTags("Bot - Announcements")
         .RequireAuthorization();
         app.MapGet("/bot/announcements/{id:guid}/audit", async (Guid id, IConfiguration config) =>
         {
@@ -2613,6 +2636,7 @@ internal class Program
             return Results.Ok(auditLogs);
 
         })
+        .WithTags("Bot - Announcements")
         .RequireAuthorization();
         app.MapPost("/followup-tickets/{ticketId}/sync", async (string ticketId, IConfiguration config, MovideskClient movideskClient) =>
         {
@@ -2751,7 +2775,8 @@ internal class Program
                 reason = providerTicket.Reason,
                 followupStatus = "MONITORING"
             });
-        });
+        })
+        .WithTags("Followup Tickets");
         app.MapGet("/followup-tickets/{ticketId}", async (string ticketId, IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -2812,7 +2837,8 @@ internal class Program
                 lastFollowupSentAt = reader["last_followup_sent_at"] == DBNull.Value ? null : reader["last_followup_sent_at"],
                 followupStatus = reader["followup_status"]
             });
-        });
+        })
+        .WithTags("Followup Tickets");
         app.MapGet("/followup-tickets", async (IConfiguration config) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
@@ -2873,7 +2899,8 @@ internal class Program
             }
 
             return Results.Ok(tickets);
-        });
+        })
+        .WithTags("Followup Tickets");
         /*app.MapGet("/calendar/today", () => new
         {
             date = "2026-06-26",
