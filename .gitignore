@@ -48,9 +48,9 @@ docker-compose.override.yml
 *.backup
 *.sql
 
-# Permitir scripts SQL da pasta database
-!database/
-!database/**/*.sql
+# Permitir scripts SQL da API
+!InsightHub.Api/database/
+!InsightHub.Api/database/**/*.sql
 
 # OS
 .DS_Store
