@@ -1,13 +1,13 @@
 @page "/bot-announcements/new"
 @page "/bot-announcements/{Id:guid}"
+
 @using Spillgebees.Blazor.RichTextEditor.Components
 @using Spillgebees.Blazor.RichTextEditor.Components.Toolbar
 @using Microsoft.AspNetCore.Components
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
-
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Authorization
 
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 
 @inject HttpClient Http
@@ -15,9 +15,37 @@
 
 <PageTitle>Comunicado</PageTitle>
 
-<h3>@(IsNew ? "Novo Comunicado" : "Editar Comunicado")</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-1">@PageTitleText</h3>
 
-<EditForm Model="@Model" OnValidSubmit="@Save" FormName="BotAnnouncementForm">
+        @if (IsReusing)
+        {
+            <div class="text-muted">
+                Conteúdo reaproveitado. Defina uma nova vigência antes de salvar.
+            </div>
+        }
+        else if (IsReadOnly)
+        {
+            <div class="text-muted">
+                Este comunicado está encerrado e permanece disponível apenas para consulta.
+            </div>
+        }
+    </div>
+
+    @if (IsReadOnly && Id.HasValue)
+    {
+        <a class="btn btn-outline-warning"
+           href="/bot-announcements/new?reuseId=@Id">
+            Reutilizar comunicado
+        </a>
+    }
+</div>
+
+<EditForm Model="@Model"
+          OnValidSubmit="@Save"
+          FormName="BotAnnouncementForm">
+
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -28,185 +56,252 @@
         </div>
     }
 
-    @if (!string.IsNullOrWhiteSpace(successMessage))
+    @if (IsReusing)
     {
-        <div class="alert alert-success mt-3">
-            @successMessage
+        <div class="alert alert-info">
+            Um novo comunicado será criado. O registro original não será alterado.
         </div>
     }
 
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header">Informações Gerais</div>
-
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">Título</label>
-                        <InputText class="form-control"
-                                   @bind-Value="Model.Title" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <InputSelect class="form-select" @bind-Value="Model.Type">
-                            <option value="INFO">Informativo</option>
-                            <option value="WARNING">Aviso</option>
-                            <option value="MAINTENANCE">Manutenção</option>
-                            <option value="PAUSE">Pausa</option>
-                            <option value="CAMPAIGN">Campanha</option>
-                        </InputSelect>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Motivo</label>
-                        <InputSelect class="form-select" @bind-Value="Model.Reason">
-                            <option value="">Selecione...</option>
-                            <option value="MAINTENANCE">Manutenção</option>
-                            <option value="POWER_OUTAGE">Falta de energia</option>
-                            <option value="INSTABILITY">Instabilidade</option>
-                            <option value="HOLIDAY">Feriado</option>
-                            <option value="EMERGENCY">Emergência</option>
-                            <option value="OTHER">Outros</option>
-                        </InputSelect>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Prioridade</label>
-                        <InputNumber class="form-control" @bind-Value="Model.Priority" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <InputSelect class="form-select" @bind-Value="Model.Status">
-                            <option value="ACTIVE">Ativo</option>
-                            <option value="INACTIVE">Inativo</option>
-                        </InputSelect>
-                    </div>
-
-                    <div class="form-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="Model.StopBot" />
-                        <label class="form-check-label">Interromper atendimento</label>
-                    </div>
-                </div>
-            </div>
+    @if (IsReadOnly)
+    {
+        <div class="alert alert-secondary">
+            Comunicados encerrados são imutáveis. Para publicar novamente,
+            utilize a opção <strong>Reutilizar comunicado</strong>.
         </div>
+    }
 
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header">Vigência</div>
+    <fieldset disabled="@IsReadOnly">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header">Informações Gerais</div>
 
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">Início</label>
-                        <InputDate class="form-control" @bind-Value="Model.StartsAt" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Expiração</label>
-                        <InputDate class="form-control" @bind-Value="Model.ExpiresAt" />
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-<div class="row g-3 align-items-stretch">
-    <div class="col-lg-7">
-        <div class="card h-100">
-            <div class="card-header">
-                Mensagem
-            </div>
-
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Mensagem HTML</label>
-
-                    <RichTextEditor
-                        @bind-Content="Model.MessageHtml"
-                        @bind-Text="Model.MessageText"
-                        ToolbarOptions="@ToolbarOptions.BasicToolbarOptions"
-                        Theme="@QuillTheme.Snow" />
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-5">
-        <div class="card preview-card h-100">
-            <div class="card-header d-flex align-items-center gap-2">
-                <span class="preview-icon">💬</span>
-
-                <div>
-                    <div class="fw-semibold">Pré-visualização</div>
-                    <small class="text-muted">
-                        Simulação da mensagem recebida pelo cliente
-                    </small>
-                </div>
-            </div>
-
-            <div class="card-body p-0">
-                <div class="whatsapp-preview">
-                    <div class="whatsapp-header">
-                        <div class="bot-avatar">
-                            <span>EW</span>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Título</label>
+                            <InputText class="form-control"
+                                       @bind-Value="Model.Title" />
                         </div>
 
-                        <div class="bot-information">
-                            <strong>Escolaweb</strong>
-                            <small>Atendimento virtual</small>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="Model.Type">
+                                <option value="INFO">Informativo</option>
+                                <option value="WARNING">Aviso</option>
+                                <option value="MAINTENANCE">Manutenção</option>
+                                <option value="PAUSE">Pausa</option>
+                                <option value="CAMPAIGN">Campanha</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Motivo</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="Model.Reason">
+                                <option value="">Selecione...</option>
+                                <option value="MAINTENANCE">Manutenção</option>
+                                <option value="POWER_OUTAGE">Falta de energia</option>
+                                <option value="INSTABILITY">Instabilidade</option>
+                                <option value="HOLIDAY">Feriado</option>
+                                <option value="EMERGENCY">Emergência</option>
+                                <option value="OTHER">Outros</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Prioridade</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="Model.Priority" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="Model.Status">
+                                <option value="ACTIVE">Ativo</option>
+                                <option value="INACTIVE">Inativo</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input"
+                                           @bind-Value="Model.StopBot" />
+
+                            <label class="form-check-label">
+                                Interromper atendimento
+                            </label>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="whatsapp-conversation">
-                        @if (string.IsNullOrWhiteSpace(Model.MessageHtml))
-                        {
-                            <div class="whatsapp-empty-state">
-                                <span class="empty-icon">✍️</span>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header">Vigência</div>
 
-                                <div>
-                                    Digite a mensagem no editor para visualizar
-                                    como ela será apresentada ao cliente.
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="message-row">
-                                <div class="message-bubble incoming-message">
-                                    <div class="message-content">
-                                        @((MarkupString)Model.MessageHtml)
-                                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Início</label>
 
-                                    <div class="message-metadata">
-                                        <span>@DateTime.Now.ToString("HH:mm")</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            @if (Model.StopBot)
+                            @if (CanEditStart)
                             {
-                                <div class="flow-warning">
-                                    <span>⚠️</span>
-                                    Este comunicado interromperá o atendimento.
+                                <InputDate TValue="DateTime?"
+                                           Type="InputDateType.DateTimeLocal"
+                                           class="form-control"
+                                           min="@MinimumStartDate"
+                                           @bind-Value="Model.StartsAt" />
+                            }
+                            else
+                            {
+                                <input type="text"
+                                       class="form-control"
+                                       value="@FormatDateTimeDisplay(Model.StartsAt)"
+                                       disabled />
+                            }
+
+                            @if (HasStarted && !IsNew)
+                            {
+                                <div class="form-text text-warning">
+                                    O início não pode ser alterado porque o comunicado já começou.
                                 </div>
                             }
-                        }
+                            else
+                            {
+                                <div class="form-text">
+                                    Deixe em branco para iniciar imediatamente.
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Expiração</label>
+
+                            <InputDate TValue="DateTime?"
+                                       Type="InputDateType.DateTimeLocal"
+                                       class="form-control"
+                                       min="@MinimumExpirationDate"
+                                       @bind-Value="Model.ExpiresAt"
+                                       disabled="@IsReadOnly" />
+
+                            <div class="form-text">
+                                Deixe em branco para manter o comunicado sem prazo de expiração.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </fieldset>
+
+    <div class="row g-3 align-items-stretch">
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">Mensagem</div>
+
+                <div class="card-body">
+                    @if (IsReadOnly)
+                    {
+                        <div class="readonly-message border rounded p-3 bg-light">
+                            @((MarkupString)Model.MessageHtml)
+                        </div>
+                    }
+                    else
+                    {
+                        <RichTextEditor
+                            @bind-Content="Model.MessageHtml"
+                            @bind-Text="Model.MessageText"
+                            ToolbarOptions="@ToolbarOptions.BasicToolbarOptions"
+                            Theme="@QuillTheme.Snow" />
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card preview-card h-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="preview-icon">💬</span>
+
+                    <div>
+                        <div class="fw-semibold">Pré-visualização</div>
+                        <small class="text-muted">
+                            Simulação da mensagem recebida pelo cliente
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="whatsapp-preview">
+                        <div class="whatsapp-header">
+                            <div class="bot-avatar">
+                                <span>EW</span>
+                            </div>
+
+                            <div class="bot-information">
+                                <strong>Escolaweb</strong>
+                                <small>Atendimento virtual</small>
+                            </div>
+                        </div>
+
+                        <div class="whatsapp-conversation">
+                            @if (string.IsNullOrWhiteSpace(Model.MessageHtml))
+                            {
+                                <div class="whatsapp-empty-state">
+                                    <span class="empty-icon">✍️</span>
+
+                                    <div>
+                                        Digite a mensagem no editor para visualizar
+                                        como ela será apresentada ao cliente.
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="message-row">
+                                    <div class="message-bubble incoming-message">
+                                        <div class="message-content">
+                                            @((MarkupString)Model.MessageHtml)
+                                        </div>
+
+                                        <div class="message-metadata">
+                                            <span>@DateTime.Now.ToString("HH:mm")</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (Model.StopBot)
+                                {
+                                    <div class="flow-warning">
+                                        <span>⚠️</span>
+                                        Este comunicado interromperá o atendimento.
+                                    </div>
+                                }
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-    <div class="mt-4">
-        <button type="submit" class="btn btn-primary">
-            Salvar
-        </button>
+    <div class="mt-4 d-flex justify-content-between">
+        <a class="btn btn-outline-secondary"
+           href="/bot-announcements">
+            Voltar
+        </a>
 
-        <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">
-            Cancelar
-        </button>
+        @if (!IsReadOnly)
+        {
+            <button type="submit"
+                    class="btn btn-primary">
+                @(IsReusing ? "Criar novo comunicado" : "Salvar")
+            </button>
+        }
     </div>
 </EditForm>
 
@@ -214,31 +309,151 @@
     [Parameter]
     public Guid? Id { get; set; }
 
-    private bool IsNew => Id is null;
-
-    private string? errorMessage;
-    private string? successMessage;
+    [SupplyParameterFromQuery(Name = "reuseId")]
+    public Guid? ReuseId { get; set; }
 
     private BotAnnouncementModel Model = new();
+    private string? errorMessage;
+
+    private bool IsNew => Id is null;
+    private bool IsReusing => IsNew && ReuseId.HasValue;
+
+    private bool HasStarted =>
+        !IsNew &&
+        Model.StartsAt.HasValue &&
+        Model.StartsAt.Value <= DateTime.Now;
+
+    private bool HasExpired =>
+        !IsNew &&
+        Model.ExpiresAt.HasValue &&
+        Model.ExpiresAt.Value <= DateTime.Now;
+
+    private bool IsReadOnly =>
+        HasExpired;
+
+    private bool CanEditStart =>
+        !IsReadOnly &&
+        (IsNew || !HasStarted);
+
+    private string PageTitleText =>
+        IsReusing
+            ? "Reutilizar Comunicado"
+            : IsNew
+                ? "Novo Comunicado"
+                : IsReadOnly
+                    ? "Visualizar Comunicado"
+                    : "Editar Comunicado";
+
+    private string MinimumStartDate =>
+        DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
+
+    private string MinimumExpirationDate =>
+        (Model.StartsAt.HasValue &&
+         Model.StartsAt.Value > DateTime.Now
+            ? Model.StartsAt.Value
+            : DateTime.Now)
+        .ToString("yyyy-MM-ddTHH:mm");
 
     protected override async Task OnInitializedAsync()
     {
         if (!IsNew)
         {
-            var result = await Http.GetFromJsonAsync<BotAnnouncementModel>(
-                $"/bot/announcements/{Id}");
-
-            if (result is not null)
-            {
-                Model = result;
-            }
+            await LoadForEditing(Id!.Value);
+            return;
         }
+
+        if (ReuseId.HasValue)
+        {
+            await LoadForReuse(ReuseId.Value);
+        }
+    }
+
+    private async Task LoadForEditing(Guid id)
+    {
+        var result =
+            await Http.GetFromJsonAsync<BotAnnouncementModel>(
+                $"/bot/announcements/{id}");
+
+        if (result is not null)
+        {
+            Model = result;
+        }
+    }
+
+    private async Task LoadForReuse(Guid sourceId)
+    {
+        var source =
+            await Http.GetFromJsonAsync<BotAnnouncementModel>(
+                $"/bot/announcements/{sourceId}");
+
+        if (source is null)
+        {
+            errorMessage =
+                "O comunicado de origem não foi encontrado.";
+
+            return;
+        }
+
+        Model = new BotAnnouncementModel
+        {
+            SourceAnnouncementId = source.Id,
+            Title = source.Title,
+            Type = source.Type,
+            Status = "ACTIVE",
+            Reason = source.Reason,
+            Priority = source.Priority,
+            StopBot = source.StopBot,
+            MessageHtml = source.MessageHtml,
+            MessageText = source.MessageText,
+            StartsAt = null,
+            ExpiresAt = null
+        };
     }
 
     private async Task Save()
     {
         errorMessage = null;
-        successMessage = null;
+
+        if (IsReadOnly)
+        {
+            errorMessage =
+                "Comunicados encerrados não podem ser alterados.";
+
+            return;
+        }
+
+        var now = DateTime.Now;
+
+        // Em um comunicado já iniciado, o início é histórico e fica bloqueado.
+        // Portanto, só validamos início passado ao criar ou ao editar um comunicado agendado.
+        if ((IsNew || !HasStarted) &&
+            Model.StartsAt.HasValue &&
+            Model.StartsAt.Value < now.AddMinutes(-1))
+        {
+            errorMessage =
+                "A data e hora de início não podem ser anteriores ao momento atual.";
+
+            return;
+        }
+
+        if (Model.ExpiresAt.HasValue &&
+            Model.ExpiresAt.Value <= now)
+        {
+            errorMessage =
+                "A data e hora de expiração devem ser posteriores ao momento atual.";
+
+            return;
+        }
+
+        if (Model.StartsAt.HasValue &&
+            Model.ExpiresAt.HasValue &&
+            Model.ExpiresAt.Value <= Model.StartsAt.Value)
+        {
+            errorMessage =
+                "A data e hora de expiração devem ser posteriores ao início do comunicado.";
+
+            return;
+        }
 
         try
         {
@@ -246,17 +461,27 @@
 
             if (IsNew)
             {
-                response = await Http.PostAsJsonAsync("/bot/announcements", Model);
+                response =
+                    await Http.PostAsJsonAsync(
+                        "/bot/announcements",
+                        Model);
             }
             else
             {
-                response = await Http.PutAsJsonAsync($"/bot/announcements/{Id}", Model);
+                response =
+                    await Http.PutAsJsonAsync(
+                        $"/bot/announcements/{Id}",
+                        Model);
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                var apiError = await response.Content.ReadAsStringAsync();
-                errorMessage = $"Erro ao salvar comunicado. Status: {(int)response.StatusCode}. Retorno: {apiError}";
+                var apiError =
+                    await response.Content.ReadAsStringAsync();
+
+                errorMessage =
+                    $"Erro ao salvar comunicado. Status: {(int)response.StatusCode}. Retorno: {apiError}";
+
                 return;
             }
 
@@ -264,23 +489,27 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Erro inesperado ao salvar comunicado: {ex.Message}";
+            errorMessage =
+                $"Erro inesperado ao salvar comunicado: {ex.Message}";
         }
     }
 
-    private void Cancel()
+    private static string FormatDateTimeDisplay(DateTime? value)
     {
-        Navigation.NavigateTo("/bot-announcements");
+        return value.HasValue
+            ? value.Value.ToString("dd/MM/yyyy HH:mm")
+            : "Início imediato";
     }
 
     public class BotAnnouncementModel
     {
         public Guid Id { get; set; }
+        public Guid? SourceAnnouncementId { get; set; }
         public string Title { get; set; } = "";
         public string Type { get; set; } = "INFO";
         public string Status { get; set; } = "ACTIVE";
         public string? Reason { get; set; }
-        public int Priority { get; set; } = 0;
+        public int Priority { get; set; }
         public bool StopBot { get; set; }
         public string MessageHtml { get; set; } = "";
         public string? MessageText { get; set; }

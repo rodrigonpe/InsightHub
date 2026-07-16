@@ -1,18 +1,38 @@
 @page "/bot-announcements"
+@rendermode InteractiveServer
+
 @using System.Net.Http.Json
-@attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize]
 @inject HttpClient Http
 
 <PageTitle>Comunicados do Bot</PageTitle>
 
-<h3>Comunicados do Bot</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-1">Comunicados do Bot</h3>
+        <div class="text-muted">
+            Gerencie comunicados informativos e interrupções do atendimento.
+        </div>
+    </div>
 
-<div class="mb-3">
     <a class="btn btn-primary" href="/bot-announcements/new">
         Novo comunicado
     </a>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(pageSuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show">
+        @pageSuccessMessage
+
+        <button type="button"
+                class="btn-close"
+                @onclick="() => pageSuccessMessage = null">
+        </button>
+    </div>
+}
 
 @if (isLoading)
 {
@@ -30,57 +50,178 @@ else if (announcements.Count == 0)
 }
 else
 {
-    <table class="table table-striped table-hover">
-        <thead>
-            <tr>
-                <th>Título</th>
-                <th>Tipo</th>
-                <th>Status</th>
-                <th>Prioridade</th>
-                <th>Interrompe?</th>
-                <th>Início</th>
-                <th>Expiração</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in announcements)
-            {
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
                 <tr>
-                    <td>@item.Title</td>
-                    <td>@item.Type</td>
-                    <td>@item.Status</td>
-                    <td>@item.Priority</td>
-                    <td>@(item.StopBot ? "Sim" : "Não")</td>
-                    <td>@FormatDate(item.StartsAt)</td>
-                    <td>@FormatDate(item.ExpiresAt)</td>
-                    <td class="text-end">
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="/bot-announcements/@item.Id">
-                            Editar
-                        </a>
-                    </td>
+                    <th>Título</th>
+                    <th>Tipo</th>
+                    <th>Situação</th>
+                    <th>Interrompe?</th>
+                    <th>Início</th>
+                    <th>Expiração</th>
+                    <th class="text-end">Ações</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+
+            <tbody>
+                @foreach (var item in announcements)
+                {
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">@item.Title</div>
+
+                            @if (item.SourceAnnouncementId.HasValue)
+                            {
+                                <small class="text-muted">
+                                    Reutilizado de outro comunicado
+                                </small>
+                            }
+                        </td>
+
+                        <td>@GetTypeLabel(item.Type)</td>
+
+                        <td>
+                            <span class="badge @GetSituationBadgeClass(item)">
+                                @GetSituationLabel(item)
+                            </span>
+                        </td>
+
+                        <td>@(item.StopBot ? "Sim" : "Não")</td>
+                        <td>@FormatDate(item.StartsAt)</td>
+                        <td>@FormatDate(item.ExpiresAt, "Sem prazo")</td>
+
+                        <td class="text-end text-nowrap">
+                            @if (CanEdit(item))
+                            {
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="/bot-announcements/@item.Id">
+                                    Editar
+                                </a>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   href="/bot-announcements/@item.Id">
+                                    Visualizar
+                                </a>
+                            }
+
+                            @if (CanExtend(item))
+                            {
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-success ms-1"
+                                        @onclick="() => OpenExtendModal(item)">
+                                    Estender
+                                </button>
+                            }
+
+                            @if (CanReuse(item))
+                            {
+                                <a class="btn btn-sm btn-outline-warning ms-1"
+                                   href="/bot-announcements/new?reuseId=@item.Id">
+                                    Reutilizar
+                                </a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (showExtendModal && announcementToExtend is not null)
+{
+    <div class="modal-backdrop-custom">
+        <div class="extend-modal card shadow">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Estender vigência</strong>
+
+                <button type="button"
+                        class="btn-close"
+                        @onclick="CloseExtendModal">
+                </button>
+            </div>
+
+            <div class="card-body">
+                <p class="mb-2">
+                    <strong>@announcementToExtend.Title</strong>
+                </p>
+
+                <p class="text-muted small">
+                    Expiração atual:
+                    @announcementToExtend.ExpiresAt?.ToString("dd/MM/yyyy HH:mm")
+                </p>
+
+                @if (!string.IsNullOrWhiteSpace(extendErrorMessage))
+                {
+                    <div class="alert alert-danger">
+                        @extendErrorMessage
+                    </div>
+                }
+
+                <label class="form-label">
+                    Nova data e hora de expiração
+                </label>
+
+                <InputDate TValue="DateTime?"
+                           Type="InputDateType.DateTimeLocal"
+                           class="form-control"
+                           min="@GetMinimumExtensionDate(announcementToExtend)"
+                           @bind-Value="newExpirationDate" />
+            </div>
+
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick="CloseExtendModal">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="btn btn-success"
+                        @onclick="ConfirmExtension">
+                    Confirmar extensão
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
     private List<BotAnnouncementListItem> announcements = new();
     private bool isLoading = true;
     private string? errorMessage;
+    private string? pageSuccessMessage;
+
+    private bool showExtendModal;
+    private BotAnnouncementListItem? announcementToExtend;
+    private DateTime? newExpirationDate;
+    private string? extendErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAnnouncements();
+    }
+
+    private async Task LoadAnnouncements()
+    {
+        isLoading = true;
+        errorMessage = null;
+
         try
         {
-            var result = await Http.GetFromJsonAsync<List<BotAnnouncementListItem>>("/bot/announcements");
+            var result =
+                await Http.GetFromJsonAsync<List<BotAnnouncementListItem>>(
+                    "/bot/announcements");
+
             announcements = result ?? new();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Erro ao carregar comunicados: {ex.Message}";
+            errorMessage =
+                $"Erro ao carregar comunicados: {ex.Message}";
         }
         finally
         {
@@ -88,16 +229,207 @@ else
         }
     }
 
-    private static string FormatDate(DateTime? date)
+    private static bool IsExpired(BotAnnouncementListItem item)
+    {
+        return item.ExpiresAt.HasValue &&
+               item.ExpiresAt.Value <= DateTime.Now;
+    }
+
+    private static bool HasStarted(BotAnnouncementListItem item)
+    {
+        return item.StartsAt.HasValue &&
+               item.StartsAt.Value <= DateTime.Now;
+    }
+
+    private static bool IsScheduled(BotAnnouncementListItem item)
+    {
+        return item.Status == "ACTIVE" &&
+               item.StartsAt.HasValue &&
+               item.StartsAt.Value > DateTime.Now;
+    }
+
+    private static bool IsCurrent(BotAnnouncementListItem item)
+    {
+        return item.Status == "ACTIVE" &&
+               HasStarted(item) &&
+               !IsExpired(item);
+    }
+
+    private static bool CanEdit(BotAnnouncementListItem item)
+    {
+        return !IsExpired(item) &&
+               item.Status == "ACTIVE";
+    }
+
+    private static bool CanExtend(BotAnnouncementListItem item)
+    {
+        return IsCurrent(item) &&
+               item.ExpiresAt.HasValue;
+    }
+
+    private static bool CanReuse(BotAnnouncementListItem item)
+    {
+        return IsExpired(item) ||
+               item.Status == "INACTIVE";
+    }
+
+    private static string GetSituationLabel(BotAnnouncementListItem item)
+    {
+        if (IsExpired(item))
+            return "Encerrado";
+
+        if (item.Status == "INACTIVE")
+            return "Inativo";
+
+        if (IsScheduled(item))
+            return "Agendado";
+
+        if (IsCurrent(item))
+            return "Ativo";
+
+        return item.Status;
+    }
+
+    private static string GetSituationBadgeClass(BotAnnouncementListItem item)
+    {
+        if (IsExpired(item))
+            return "text-bg-secondary";
+
+        if (item.Status == "INACTIVE")
+            return "text-bg-danger";
+
+        if (IsScheduled(item))
+            return "text-bg-info";
+
+        if (IsCurrent(item))
+            return "text-bg-success";
+
+        return "text-bg-light";
+    }
+
+    private static string GetTypeLabel(string type)
+    {
+        return type switch
+        {
+            "INFO" => "Informativo",
+            "WARNING" => "Aviso",
+            "MAINTENANCE" => "Manutenção",
+            "PAUSE" => "Pausa",
+            "CAMPAIGN" => "Campanha",
+            _ => type
+        };
+    }
+
+    private void OpenExtendModal(BotAnnouncementListItem item)
+    {
+        announcementToExtend = item;
+        newExpirationDate = item.ExpiresAt?.AddDays(1);
+        extendErrorMessage = null;
+        showExtendModal = true;
+    }
+
+    private void CloseExtendModal()
+    {
+        showExtendModal = false;
+        announcementToExtend = null;
+        newExpirationDate = null;
+        extendErrorMessage = null;
+    }
+
+    private async Task ConfirmExtension()
+    {
+        extendErrorMessage = null;
+
+        if (announcementToExtend is null)
+            return;
+
+        if (!newExpirationDate.HasValue)
+        {
+            extendErrorMessage =
+                "Informe a nova data e hora de expiração.";
+
+            return;
+        }
+
+        if (!CanExtend(announcementToExtend))
+        {
+            extendErrorMessage =
+                "Este comunicado não está mais vigente e não pode ser estendido.";
+
+            return;
+        }
+
+        if (newExpirationDate.Value <= DateTime.Now)
+        {
+            extendErrorMessage =
+                "A nova expiração deve ser posterior ao momento atual.";
+
+            return;
+        }
+
+        if (announcementToExtend.ExpiresAt.HasValue &&
+            newExpirationDate.Value <= announcementToExtend.ExpiresAt.Value)
+        {
+            extendErrorMessage =
+                "A nova expiração deve ser posterior à expiração atual.";
+
+            return;
+        }
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/bot/announcements/{announcementToExtend.Id}/extend");
+
+        request.Content = JsonContent.Create(new
+        {
+            expiresAt = newExpirationDate.Value
+        });
+
+        var response = await Http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var apiError =
+                await response.Content.ReadAsStringAsync();
+
+            extendErrorMessage =
+                $"Não foi possível estender o comunicado. Retorno: {apiError}";
+
+            return;
+        }
+
+        pageSuccessMessage =
+            "Vigência estendida com sucesso.";
+
+        CloseExtendModal();
+        await LoadAnnouncements();
+    }
+
+    private static string FormatDate(
+        DateTime? date,
+        string emptyText = "-")
     {
         return date.HasValue
             ? date.Value.ToString("dd/MM/yyyy HH:mm")
-            : "-";
+            : emptyText;
+    }
+
+    private static string GetMinimumExtensionDate(
+        BotAnnouncementListItem item)
+    {
+        var minimum =
+            item.ExpiresAt.HasValue &&
+            item.ExpiresAt.Value > DateTime.Now
+                ? item.ExpiresAt.Value.AddMinutes(1)
+                : DateTime.Now.AddMinutes(1);
+
+        return minimum.ToString("yyyy-MM-ddTHH:mm");
     }
 
     public class BotAnnouncementListItem
     {
         public Guid Id { get; set; }
+        public Guid? SourceAnnouncementId { get; set; }
         public string Title { get; set; } = "";
         public string Type { get; set; } = "";
         public string Status { get; set; } = "";

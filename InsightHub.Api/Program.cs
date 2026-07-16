@@ -1525,34 +1525,48 @@ internal class Program
                     return Results.Unauthorized();
                 }
 
-            if (string.IsNullOrWhiteSpace(request.Title))
-                return Results.BadRequest(new { message = "Informe o título do comunicado." });
+            var fieldValidation = ValidateBotAnnouncementFields(
+                request.Title,
+                request.Type,
+                request.Reason,
+                request.Priority,
+                request.MessageHtml,
+                "ACTIVE");
 
-            if (request.Title.Length > 150)
-                return Results.BadRequest(new { message = "O título deve ter no máximo 150 caracteres." });
+            if (fieldValidation is not null)
+            {
+                return fieldValidation;
+            }
 
-            if (string.IsNullOrWhiteSpace(request.Type))
-                return Results.BadRequest(new { message = "Informe o tipo do comunicado." });
+            var now = DateTime.Now;
+            var effectiveStartsAt = request.StartsAt ?? now;
 
-            var validTypes = new[] { "INFO", "WARNING", "MAINTENANCE", "PAUSE", "CAMPAIGN" };
-            if (!validTypes.Contains(request.Type))
-                return Results.BadRequest(new { message = "Tipo de comunicado inválido." });
+            if (request.StartsAt.HasValue &&
+                request.StartsAt.Value < now.AddMinutes(-1))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "A data e hora de início não podem ser anteriores ao momento atual."
+                });
+            }
 
-            var validReasons = new[] { "MAINTENANCE", "POWER_OUTAGE", "INSTABILITY", "HOLIDAY", "EMERGENCY", "OTHER" };
-            if (!string.IsNullOrWhiteSpace(request.Reason) && !validReasons.Contains(request.Reason))
-                return Results.BadRequest(new { message = "Motivo do comunicado inválido." });
+            if (request.ExpiresAt.HasValue &&
+                request.ExpiresAt.Value <= now)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "A data e hora de expiração devem ser posteriores ao momento atual."
+                });
+            }
 
-            if ((request.Type == "MAINTENANCE" || request.Type == "PAUSE") && string.IsNullOrWhiteSpace(request.Reason))
-                return Results.BadRequest(new { message = "Informe o motivo para comunicados de manutenção ou pausa." });
-
-            if (request.Priority < 0)
-                return Results.BadRequest(new { message = "A prioridade não pode ser negativa." });
-
-            if (string.IsNullOrWhiteSpace(request.MessageHtml))
-                return Results.BadRequest(new { message = "Informe a mensagem HTML do comunicado." });
-
-            if (request.StartsAt.HasValue && request.ExpiresAt.HasValue && request.StartsAt >= request.ExpiresAt)
-                return Results.BadRequest(new { message = "A data de início deve ser menor que a data de expiração." });
+            if (request.ExpiresAt.HasValue &&
+                request.ExpiresAt.Value <= effectiveStartsAt)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "A data e hora de expiração devem ser posteriores ao início do comunicado."
+                });
+            }
 
             var connectionString = config.GetConnectionString("DefaultConnection");
 
@@ -1573,7 +1587,7 @@ internal class Program
                 await using var overlapCommand = new NpgsqlCommand(overlapSql, connection);
 
                 overlapCommand.Parameters.Add("startsAt", NpgsqlDbType.Timestamp).Value =
-                    request.StartsAt.HasValue ? request.StartsAt.Value : DBNull.Value;
+                    effectiveStartsAt;
 
                 overlapCommand.Parameters.Add("expiresAt", NpgsqlDbType.Timestamp).Value =
                     request.ExpiresAt.HasValue ? request.ExpiresAt.Value : DBNull.Value;
@@ -1608,6 +1622,7 @@ internal class Program
                         message_text,
                         starts_at,
                         expires_at,
+                        source_announcement_id,
                         created_by,
                         created_at
                     )
@@ -1623,6 +1638,7 @@ internal class Program
                         @messageText,
                         @startsAt,
                         @expiresAt,
+                        @sourceAnnouncementId,
                         @createdBy,
                         NOW()
                     );
@@ -1645,10 +1661,15 @@ internal class Program
                     string.IsNullOrWhiteSpace(request.MessageText) ? DBNull.Value : request.MessageText;
 
                 insertCommand.Parameters.Add("startsAt", NpgsqlDbType.Timestamp).Value =
-                    request.StartsAt.HasValue ? request.StartsAt.Value : DBNull.Value;
+                    effectiveStartsAt;
 
                 insertCommand.Parameters.Add("expiresAt", NpgsqlDbType.Timestamp).Value =
                     request.ExpiresAt.HasValue ? request.ExpiresAt.Value : DBNull.Value;
+
+                insertCommand.Parameters.Add("sourceAnnouncementId", NpgsqlDbType.Uuid).Value =
+                    request.SourceAnnouncementId.HasValue
+                        ? request.SourceAnnouncementId.Value
+                        : DBNull.Value;
 
                 insertCommand.Parameters.AddWithValue("createdBy", createdBy);
 
@@ -1665,10 +1686,11 @@ internal class Program
                     request.StopBot,
                     request.MessageHtml,
                     request.MessageText,
-                    request.StartsAt,
+                    StartsAt = effectiveStartsAt,
                     request.ExpiresAt,
+                    request.SourceAnnouncementId,
                     CreatedBy = createdBy,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = now
                 });
 
                 const string auditSql = @"
@@ -1794,6 +1816,7 @@ internal class Program
                     stop_bot,
                     starts_at,
                     expires_at,
+                    source_announcement_id,
                     created_at
                 FROM bot_announcements
                 ORDER BY
@@ -1831,6 +1854,10 @@ internal class Program
                         ? (DateTime?)null
                         : reader.GetDateTime(reader.GetOrdinal("expires_at")),
 
+                    sourceAnnouncementId = reader.IsDBNull(reader.GetOrdinal("source_announcement_id"))
+                        ? (Guid?)null
+                        : reader.GetGuid(reader.GetOrdinal("source_announcement_id")),
+
                     createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
                 });
             }
@@ -1860,6 +1887,7 @@ internal class Program
                     message_text,
                     starts_at,
                     expires_at,
+                    source_announcement_id,
                     created_at,
                     updated_at,
                     deactivated_at
@@ -1909,6 +1937,10 @@ internal class Program
                     ? (DateTime?)null
                     : reader.GetDateTime(reader.GetOrdinal("expires_at")),
 
+                sourceAnnouncementId = reader.IsDBNull(reader.GetOrdinal("source_announcement_id"))
+                    ? (Guid?)null
+                    : reader.GetGuid(reader.GetOrdinal("source_announcement_id")),
+
                 createdAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
 
                 updatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at"))
@@ -1923,71 +1955,47 @@ internal class Program
         })
         .WithTags("Bot - Announcements")
         /*.RequireAuthorization()*/;
-        app.MapPut("/bot/announcements/{id:guid}", async (Guid id, UpdateBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
+        app.MapPut("/bot/announcements/{id:guid}", async (
+            Guid id,
+            UpdateBotAnnouncementRequest request,
+            IConfiguration config,
+            ClaimsPrincipal user) =>
         {
             var userIdClaim = user.FindFirst("sub")?.Value
                 ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             if (!Guid.TryParse(userIdClaim, out var updatedBy))
+            {
                 return Results.Unauthorized();
+            }
 
-            var validationResult = ValidateBotAnnouncement(
+            var fieldValidation = ValidateBotAnnouncementFields(
                 request.Title,
                 request.Type,
                 request.Reason,
                 request.Priority,
                 request.MessageHtml,
-                request.StartsAt,
-                request.ExpiresAt,
-                request.Status
-            );
+                request.Status);
 
-            if (validationResult is not null)
-                return validationResult;
-
-            var connectionString = config.GetConnectionString("DefaultConnection");
-
-            await using var connection = new NpgsqlConnection(connectionString);
-            await connection.OpenAsync();
-
-            if (request.StopBot && request.Status == "ACTIVE")
+            if (fieldValidation is not null)
             {
-                const string overlapSql = @"
-                    SELECT COUNT(*)
-                    FROM bot_announcements
-                    WHERE id <> @id
-                    AND status = 'ACTIVE'
-                    AND stop_bot = TRUE
-                    AND COALESCE(starts_at, '-infinity'::timestamp) <= COALESCE(@expiresAt, 'infinity'::timestamp)
-                    AND COALESCE(expires_at, 'infinity'::timestamp) >= COALESCE(@startsAt, '-infinity'::timestamp);
-                ";
-
-                await using var overlapCommand = new NpgsqlCommand(overlapSql, connection);
-
-                overlapCommand.Parameters.AddWithValue("id", id);
-
-                overlapCommand.Parameters.Add("startsAt", NpgsqlDbType.Timestamp).Value =
-                    request.StartsAt.HasValue ? request.StartsAt.Value : DBNull.Value;
-
-                overlapCommand.Parameters.Add("expiresAt", NpgsqlDbType.Timestamp).Value =
-                    request.ExpiresAt.HasValue ? request.ExpiresAt.Value : DBNull.Value;
-
-                var overlappingCount = Convert.ToInt32(await overlapCommand.ExecuteScalarAsync());
-
-                if (overlappingCount > 0)
-                {
-                    return Results.Conflict(new
-                    {
-                        message = "Já existe outro comunicado ativo que interrompe o atendimento neste período."
-                    });
-                }
+                return fieldValidation;
             }
 
-            await using var transaction = await connection.BeginTransactionAsync();
+            var connectionString =
+                config.GetConnectionString("DefaultConnection");
+
+            await using var connection =
+                new NpgsqlConnection(connectionString);
+
+            await connection.OpenAsync();
+
+            await using var transaction =
+                await connection.BeginTransactionAsync();
 
             try
             {
-                const string currentSql = @"
+                const string currentSql = """
                     SELECT
                         id,
                         title,
@@ -2000,6 +2008,7 @@ internal class Program
                         message_text,
                         starts_at,
                         expires_at,
+                        source_announcement_id,
                         created_by,
                         created_at,
                         updated_by,
@@ -2008,12 +2017,15 @@ internal class Program
                         deactivated_at
                     FROM bot_announcements
                     WHERE id = @id;
-                ";
+                    """;
 
-                await using var currentCommand = new NpgsqlCommand(currentSql, connection, transaction);
+                await using var currentCommand =
+                    new NpgsqlCommand(currentSql, connection, transaction);
+
                 currentCommand.Parameters.AddWithValue("id", id);
 
-                await using var reader = await currentCommand.ExecuteReaderAsync();
+                await using var reader =
+                    await currentCommand.ExecuteReaderAsync();
 
                 if (!await reader.ReadAsync())
                 {
@@ -2029,24 +2041,168 @@ internal class Program
                     title = reader.GetString(reader.GetOrdinal("title")),
                     type = reader.GetString(reader.GetOrdinal("type")),
                     status = reader.GetString(reader.GetOrdinal("status")),
-                    reason = reader.IsDBNull(reader.GetOrdinal("reason")) ? null : reader.GetString(reader.GetOrdinal("reason")),
+
+                    reason = reader.IsDBNull(reader.GetOrdinal("reason"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("reason")),
+
                     priority = reader.GetInt32(reader.GetOrdinal("priority")),
                     stopBot = reader.GetBoolean(reader.GetOrdinal("stop_bot")),
                     messageHtml = reader.GetString(reader.GetOrdinal("message_html")),
-                    messageText = reader.IsDBNull(reader.GetOrdinal("message_text")) ? null : reader.GetString(reader.GetOrdinal("message_text")),
-                    startsAt = reader.IsDBNull(reader.GetOrdinal("starts_at")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("starts_at")),
-                    expiresAt = reader.IsDBNull(reader.GetOrdinal("expires_at")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("expires_at")),
+
+                    messageText = reader.IsDBNull(reader.GetOrdinal("message_text"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("message_text")),
+
+                    startsAt = reader.IsDBNull(reader.GetOrdinal("starts_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(reader.GetOrdinal("starts_at")),
+
+                    expiresAt = reader.IsDBNull(reader.GetOrdinal("expires_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(reader.GetOrdinal("expires_at")),
+
+                    sourceAnnouncementId =
+                        reader.IsDBNull(reader.GetOrdinal("source_announcement_id"))
+                            ? (Guid?)null
+                            : reader.GetGuid(reader.GetOrdinal("source_announcement_id")),
+
                     createdBy = reader.GetGuid(reader.GetOrdinal("created_by")),
                     createdAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
-                    updatedBy = reader.IsDBNull(reader.GetOrdinal("updated_by")) ? (Guid?)null : reader.GetGuid(reader.GetOrdinal("updated_by")),
-                    updatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("updated_at")),
-                    deactivatedBy = reader.IsDBNull(reader.GetOrdinal("deactivated_by")) ? (Guid?)null : reader.GetGuid(reader.GetOrdinal("deactivated_by")),
-                    deactivatedAt = reader.IsDBNull(reader.GetOrdinal("deactivated_at")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("deactivated_at"))
+
+                    updatedBy = reader.IsDBNull(reader.GetOrdinal("updated_by"))
+                        ? (Guid?)null
+                        : reader.GetGuid(reader.GetOrdinal("updated_by")),
+
+                    updatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(reader.GetOrdinal("updated_at")),
+
+                    deactivatedBy = reader.IsDBNull(reader.GetOrdinal("deactivated_by"))
+                        ? (Guid?)null
+                        : reader.GetGuid(reader.GetOrdinal("deactivated_by")),
+
+                    deactivatedAt = reader.IsDBNull(reader.GetOrdinal("deactivated_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(reader.GetOrdinal("deactivated_at"))
                 };
 
                 await reader.CloseAsync();
 
-                const string updateSql = @"
+                var now = DateTime.Now;
+                var originalStartsAt = oldDataObject.startsAt;
+                var originalExpiresAt = oldDataObject.expiresAt;
+
+                var hasStarted =
+                    originalStartsAt.HasValue &&
+                    originalStartsAt.Value <= now;
+
+                var hasExpired =
+                    originalExpiresAt.HasValue &&
+                    originalExpiresAt.Value <= now;
+
+                if (hasExpired)
+                {
+                    return Results.Conflict(new
+                    {
+                        message =
+                            "Comunicados encerrados não podem ser editados. " +
+                            "Utilize a opção Reutilizar para criar um novo comunicado."
+                    });
+                }
+
+                DateTime effectiveStartsAt;
+
+                if (hasStarted)
+                {
+                    // O comunicado já começou. O início histórico deve ser preservado.
+                    effectiveStartsAt = originalStartsAt!.Value;
+                }
+                else
+                {
+                    // O comunicado ainda não começou e pode receber um novo início.
+                    effectiveStartsAt = request.StartsAt ?? now;
+
+                    if (request.StartsAt.HasValue &&
+                        request.StartsAt.Value < now.AddMinutes(-1))
+                    {
+                        return Results.BadRequest(new
+                        {
+                            message =
+                                "A nova data e hora de início não podem ser anteriores ao momento atual."
+                        });
+                    }
+                }
+
+                if (request.ExpiresAt.HasValue &&
+                    request.ExpiresAt.Value <= now)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message =
+                            "A data e hora de expiração devem ser posteriores ao momento atual."
+                    });
+                }
+
+                if (request.ExpiresAt.HasValue &&
+                    request.ExpiresAt.Value <= effectiveStartsAt)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message =
+                            "A data e hora de expiração devem ser posteriores ao início do comunicado."
+                    });
+                }
+
+                if (request.StopBot &&
+                    request.Status == "ACTIVE")
+                {
+                    const string overlapSql = """
+                        SELECT COUNT(*)
+                        FROM bot_announcements
+                        WHERE id <> @id
+                          AND status = 'ACTIVE'
+                          AND stop_bot = TRUE
+                          AND starts_at <= COALESCE(
+                              @expiresAt,
+                              'infinity'::timestamp
+                          )
+                          AND COALESCE(
+                              expires_at,
+                              'infinity'::timestamp
+                          ) >= @startsAt;
+                        """;
+
+                    await using var overlapCommand =
+                        new NpgsqlCommand(overlapSql, connection, transaction);
+
+                    overlapCommand.Parameters.AddWithValue("id", id);
+
+                    overlapCommand.Parameters
+                        .Add("startsAt", NpgsqlDbType.Timestamp)
+                        .Value = effectiveStartsAt;
+
+                    overlapCommand.Parameters
+                        .Add("expiresAt", NpgsqlDbType.Timestamp)
+                        .Value = request.ExpiresAt.HasValue
+                            ? request.ExpiresAt.Value
+                            : DBNull.Value;
+
+                    var overlappingCount =
+                        Convert.ToInt32(
+                            await overlapCommand.ExecuteScalarAsync());
+
+                    if (overlappingCount > 0)
+                    {
+                        return Results.Conflict(new
+                        {
+                            message =
+                                "Já existe outro comunicado ativo que interrompe o atendimento neste período."
+                        });
+                    }
+                }
+
+                const string updateSql = """
                     UPDATE bot_announcements
                     SET
                         title = @title,
@@ -2062,61 +2218,115 @@ internal class Program
                         updated_by = @updatedBy,
                         updated_at = NOW(),
                         deactivated_by = CASE
-                            WHEN @status = 'INACTIVE' THEN @updatedBy
-                            ELSE deactivated_by
+                            WHEN @status = 'INACTIVE'
+                                THEN @updatedBy
+                            ELSE NULL
                         END,
                         deactivated_at = CASE
-                            WHEN @status = 'INACTIVE' THEN NOW()
-                            ELSE deactivated_at
+                            WHEN @status = 'INACTIVE'
+                                THEN NOW()
+                            ELSE NULL
                         END
                     WHERE id = @id;
-                ";
+                    """;
 
-                await using var updateCommand = new NpgsqlCommand(updateSql, connection, transaction);
+                await using var updateCommand =
+                    new NpgsqlCommand(updateSql, connection, transaction);
 
                 updateCommand.Parameters.AddWithValue("id", id);
-                updateCommand.Parameters.AddWithValue("title", request.Title);
+                updateCommand.Parameters.AddWithValue("title", request.Title.Trim());
                 updateCommand.Parameters.AddWithValue("type", request.Type);
                 updateCommand.Parameters.AddWithValue("status", request.Status);
 
-                updateCommand.Parameters.Add("reason", NpgsqlDbType.Text).Value =
-                    string.IsNullOrWhiteSpace(request.Reason) ? DBNull.Value : request.Reason;
+                updateCommand.Parameters
+                    .Add("reason", NpgsqlDbType.Text)
+                    .Value = string.IsNullOrWhiteSpace(request.Reason)
+                        ? DBNull.Value
+                        : request.Reason;
 
-                updateCommand.Parameters.AddWithValue("priority", request.Priority);
-                updateCommand.Parameters.AddWithValue("stopBot", request.StopBot);
-                updateCommand.Parameters.AddWithValue("messageHtml", request.MessageHtml);
+                updateCommand.Parameters.AddWithValue(
+                    "priority",
+                    request.Priority);
 
-                updateCommand.Parameters.Add("messageText", NpgsqlDbType.Text).Value =
-                    string.IsNullOrWhiteSpace(request.MessageText) ? DBNull.Value : request.MessageText;
+                updateCommand.Parameters.AddWithValue(
+                    "stopBot",
+                    request.StopBot);
 
-                updateCommand.Parameters.Add("startsAt", NpgsqlDbType.Timestamp).Value =
-                    request.StartsAt.HasValue ? request.StartsAt.Value : DBNull.Value;
+                updateCommand.Parameters.AddWithValue(
+                    "messageHtml",
+                    request.MessageHtml);
 
-                updateCommand.Parameters.Add("expiresAt", NpgsqlDbType.Timestamp).Value =
-                    request.ExpiresAt.HasValue ? request.ExpiresAt.Value : DBNull.Value;
+                updateCommand.Parameters
+                    .Add("messageText", NpgsqlDbType.Text)
+                    .Value = string.IsNullOrWhiteSpace(request.MessageText)
+                        ? DBNull.Value
+                        : request.MessageText;
 
-                updateCommand.Parameters.AddWithValue("updatedBy", updatedBy);
+                updateCommand.Parameters
+                    .Add("startsAt", NpgsqlDbType.Timestamp)
+                    .Value = effectiveStartsAt;
 
-                await updateCommand.ExecuteNonQueryAsync();
+                updateCommand.Parameters
+                    .Add("expiresAt", NpgsqlDbType.Timestamp)
+                    .Value = request.ExpiresAt.HasValue
+                        ? request.ExpiresAt.Value
+                        : DBNull.Value;
+
+                updateCommand.Parameters.AddWithValue(
+                    "updatedBy",
+                    updatedBy);
+
+                var rowsAffected =
+                    await updateCommand.ExecuteNonQueryAsync();
+
+                if (rowsAffected == 0)
+                {
+                    return Results.NotFound(new
+                    {
+                        message = "Comunicado não encontrado."
+                    });
+                }
 
                 var newDataObject = new
                 {
                     id,
-                    request.Title,
-                    request.Type,
-                    request.Status,
-                    request.Reason,
-                    request.Priority,
-                    request.StopBot,
-                    request.MessageHtml,
-                    request.MessageText,
-                    request.StartsAt,
-                    request.ExpiresAt,
-                    UpdatedBy = updatedBy,
-                    UpdatedAt = DateTime.UtcNow
+                    title = request.Title.Trim(),
+                    type = request.Type,
+                    status = request.Status,
+
+                    reason = string.IsNullOrWhiteSpace(request.Reason)
+                        ? null
+                        : request.Reason,
+
+                    priority = request.Priority,
+                    stopBot = request.StopBot,
+                    messageHtml = request.MessageHtml,
+
+                    messageText =
+                        string.IsNullOrWhiteSpace(request.MessageText)
+                            ? null
+                            : request.MessageText,
+
+                    startsAt = effectiveStartsAt,
+                    expiresAt = request.ExpiresAt,
+                    sourceAnnouncementId = oldDataObject.sourceAnnouncementId,
+                    createdBy = oldDataObject.createdBy,
+                    createdAt = oldDataObject.createdAt,
+                    updatedBy,
+                    updatedAt = now,
+
+                    deactivatedBy =
+                        request.Status == "INACTIVE"
+                            ? updatedBy
+                            : (Guid?)null,
+
+                    deactivatedAt =
+                        request.Status == "INACTIVE"
+                            ? now
+                            : (DateTime?)null
                 };
 
-                const string auditSql = @"
+                const string auditSql = """
                     INSERT INTO bot_announcements_audit (
                         id,
                         announcement_id,
@@ -2135,15 +2345,30 @@ internal class Program
                         @performedBy,
                         NOW()
                     );
-                ";
+                    """;
 
-                await using var auditCommand = new NpgsqlCommand(auditSql, connection, transaction);
+                await using var auditCommand =
+                    new NpgsqlCommand(auditSql, connection, transaction);
 
-                auditCommand.Parameters.AddWithValue("auditId", Guid.NewGuid());
-                auditCommand.Parameters.AddWithValue("announcementId", id);
-                auditCommand.Parameters.AddWithValue("oldData", JsonSerializer.Serialize(oldDataObject));
-                auditCommand.Parameters.AddWithValue("newData", JsonSerializer.Serialize(newDataObject));
-                auditCommand.Parameters.AddWithValue("performedBy", updatedBy);
+                auditCommand.Parameters.AddWithValue(
+                    "auditId",
+                    Guid.NewGuid());
+
+                auditCommand.Parameters.AddWithValue(
+                    "announcementId",
+                    id);
+
+                auditCommand.Parameters.AddWithValue(
+                    "oldData",
+                    JsonSerializer.Serialize(oldDataObject));
+
+                auditCommand.Parameters.AddWithValue(
+                    "newData",
+                    JsonSerializer.Serialize(newDataObject));
+
+                auditCommand.Parameters.AddWithValue(
+                    "performedBy",
+                    updatedBy);
 
                 await auditCommand.ExecuteNonQueryAsync();
 
@@ -2152,6 +2377,8 @@ internal class Program
                 return Results.Ok(new
                 {
                     id,
+                    startsAt = effectiveStartsAt,
+                    expiresAt = request.ExpiresAt,
                     message = "Comunicado atualizado com sucesso."
                 });
             }
@@ -2160,7 +2387,6 @@ internal class Program
                 await transaction.RollbackAsync();
                 throw;
             }
-
         })
         .WithTags("Bot - Announcements")
         .RequireAuthorization();
@@ -2431,6 +2657,17 @@ internal class Program
                     });
                 }
 
+                if (expiresAt.HasValue &&
+                    expiresAt.Value <= DateTime.Now)
+                {
+                    return Results.Conflict(new
+                    {
+                        message =
+                            "Comunicados encerrados não podem ser reativados. " +
+                            "Utilize a opção Reutilizar para criar um novo comunicado."
+                    });
+                }
+
                 if (stopBot)
                 {
                     const string overlapSql = @"
@@ -2547,6 +2784,268 @@ internal class Program
                 throw;
             }
 
+        })
+        .WithTags("Bot - Announcements")
+        .RequireAuthorization();
+        app.MapPatch("/bot/announcements/{id:guid}/extend", async (Guid id, ExtendBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
+        {
+            var userIdClaim = user.FindFirst("sub")?.Value
+                ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!Guid.TryParse(userIdClaim, out var performedBy))
+                return Results.Unauthorized();
+
+            var now = DateTime.Now;
+
+            if (request.ExpiresAt <= now)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "A nova data de expiração deve ser posterior ao momento atual."
+                });
+            }
+
+            var connectionString =
+                config.GetConnectionString("DefaultConnection");
+
+            await using var connection =
+                new NpgsqlConnection(connectionString);
+
+            await connection.OpenAsync();
+
+            await using var transaction =
+                await connection.BeginTransactionAsync();
+
+            try
+            {
+                const string currentSql = """
+                    SELECT
+                        id,
+                        title,
+                        type,
+                        status,
+                        reason,
+                        priority,
+                        stop_bot,
+                        message_html,
+                        message_text,
+                        starts_at,
+                        expires_at,
+                        created_by,
+                        created_at,
+                        updated_by,
+                        updated_at,
+                        deactivated_by,
+                        deactivated_at
+                    FROM bot_announcements
+                    WHERE id = @id;
+                    """;
+
+                await using var currentCommand =
+                    new NpgsqlCommand(currentSql, connection, transaction);
+
+                currentCommand.Parameters.AddWithValue("id", id);
+
+                await using var reader =
+                    await currentCommand.ExecuteReaderAsync();
+
+                if (!await reader.ReadAsync())
+                {
+                    return Results.NotFound(new
+                    {
+                        message = "Comunicado não encontrado."
+                    });
+                }
+
+                var status =
+                    reader.GetString(reader.GetOrdinal("status"));
+
+                var currentExpiresAt =
+                    reader.IsDBNull(reader.GetOrdinal("expires_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(reader.GetOrdinal("expires_at"));
+
+                var oldDataObject = new
+                {
+                    id = reader.GetGuid(reader.GetOrdinal("id")),
+                    title = reader.GetString(reader.GetOrdinal("title")),
+                    type = reader.GetString(reader.GetOrdinal("type")),
+                    status,
+                    reason = reader.IsDBNull(reader.GetOrdinal("reason"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("reason")),
+                    priority = reader.GetInt32(reader.GetOrdinal("priority")),
+                    stopBot = reader.GetBoolean(reader.GetOrdinal("stop_bot")),
+                    messageHtml =
+                        reader.GetString(reader.GetOrdinal("message_html")),
+                    messageText =
+                        reader.IsDBNull(reader.GetOrdinal("message_text"))
+                            ? null
+                            : reader.GetString(reader.GetOrdinal("message_text")),
+                    startsAt =
+                        reader.IsDBNull(reader.GetOrdinal("starts_at"))
+                            ? (DateTime?)null
+                            : reader.GetDateTime(reader.GetOrdinal("starts_at")),
+                    expiresAt = currentExpiresAt,
+                    createdBy =
+                        reader.GetGuid(reader.GetOrdinal("created_by")),
+                    createdAt =
+                        reader.GetDateTime(reader.GetOrdinal("created_at")),
+                    updatedBy =
+                        reader.IsDBNull(reader.GetOrdinal("updated_by"))
+                            ? (Guid?)null
+                            : reader.GetGuid(reader.GetOrdinal("updated_by")),
+                    updatedAt =
+                        reader.IsDBNull(reader.GetOrdinal("updated_at"))
+                            ? (DateTime?)null
+                            : reader.GetDateTime(reader.GetOrdinal("updated_at")),
+                    deactivatedBy =
+                        reader.IsDBNull(reader.GetOrdinal("deactivated_by"))
+                            ? (Guid?)null
+                            : reader.GetGuid(reader.GetOrdinal("deactivated_by")),
+                    deactivatedAt =
+                        reader.IsDBNull(reader.GetOrdinal("deactivated_at"))
+                            ? (DateTime?)null
+                            : reader.GetDateTime(reader.GetOrdinal("deactivated_at"))
+                };
+
+                await reader.CloseAsync();
+
+                if (status != "ACTIVE")
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = "Somente comunicados ativos podem ter a vigência estendida."
+                    });
+                }
+
+                if (!currentExpiresAt.HasValue)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = "Este comunicado não possui data de expiração."
+                    });
+                }
+
+                if (currentExpiresAt.Value <= now)
+                {
+                    return Results.Conflict(new
+                    {
+                        message = "Este comunicado já expirou. Duplique e reagende o comunicado para utilizá-lo novamente."
+                    });
+                }
+
+                if (request.ExpiresAt <= currentExpiresAt.Value)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = "A nova expiração deve ser posterior à expiração atual."
+                    });
+                }
+
+                const string updateSql = """
+                    UPDATE bot_announcements
+                    SET
+                        expires_at = @expiresAt,
+                        updated_by = @performedBy,
+                        updated_at = NOW()
+                    WHERE id = @id;
+                    """;
+
+                await using var updateCommand =
+                    new NpgsqlCommand(updateSql, connection, transaction);
+
+                updateCommand.Parameters.AddWithValue("id", id);
+                updateCommand.Parameters.AddWithValue(
+                    "expiresAt",
+                    request.ExpiresAt);
+                updateCommand.Parameters.AddWithValue(
+                    "performedBy",
+                    performedBy);
+
+                await updateCommand.ExecuteNonQueryAsync();
+
+                var newDataObject = new
+                {
+                    oldDataObject.id,
+                    oldDataObject.title,
+                    oldDataObject.type,
+                    oldDataObject.status,
+                    oldDataObject.reason,
+                    oldDataObject.priority,
+                    oldDataObject.stopBot,
+                    oldDataObject.messageHtml,
+                    oldDataObject.messageText,
+                    oldDataObject.startsAt,
+                    expiresAt = request.ExpiresAt,
+                    oldDataObject.createdBy,
+                    oldDataObject.createdAt,
+                    updatedBy = performedBy,
+                    updatedAt = DateTime.Now,
+                    oldDataObject.deactivatedBy,
+                    oldDataObject.deactivatedAt
+                };
+
+                const string auditSql = """
+                    INSERT INTO bot_announcements_audit (
+                        id,
+                        announcement_id,
+                        action,
+                        old_data,
+                        new_data,
+                        performed_by,
+                        performed_at
+                    )
+                    VALUES (
+                        @auditId,
+                        @announcementId,
+                        'EXTENDED',
+                        @oldData::jsonb,
+                        @newData::jsonb,
+                        @performedBy,
+                        NOW()
+                    );
+                    """;
+
+                await using var auditCommand =
+                    new NpgsqlCommand(auditSql, connection, transaction);
+
+                auditCommand.Parameters.AddWithValue(
+                    "auditId",
+                    Guid.NewGuid());
+
+                auditCommand.Parameters.AddWithValue(
+                    "announcementId",
+                    id);
+
+                auditCommand.Parameters.AddWithValue(
+                    "oldData",
+                    JsonSerializer.Serialize(oldDataObject));
+
+                auditCommand.Parameters.AddWithValue(
+                    "newData",
+                    JsonSerializer.Serialize(newDataObject));
+
+                auditCommand.Parameters.AddWithValue(
+                    "performedBy",
+                    performedBy);
+
+                await auditCommand.ExecuteNonQueryAsync();
+
+                await transaction.CommitAsync();
+
+                return Results.Ok(new
+                {
+                    id,
+                    expiresAt = request.ExpiresAt,
+                    message = "Vigência estendida com sucesso."
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         })
         .WithTags("Bot - Announcements")
         .RequireAuthorization();
@@ -2956,7 +3455,8 @@ internal class Program
         string MessageHtml,
         string? MessageText,
         DateTime? StartsAt,
-        DateTime? ExpiresAt
+        DateTime? ExpiresAt,
+        Guid? SourceAnnouncementId
     );
     public record UpdateBotAnnouncementRequest(
         string Title,
@@ -2970,49 +3470,113 @@ internal class Program
         DateTime? ExpiresAt,
         string Status
     );
-    static IResult? ValidateBotAnnouncement(
-        string title,
-        string type,
+    static IResult? ValidateBotAnnouncementFields(
+        string? title,
+        string? type,
         string? reason,
         int priority,
-        string messageHtml,
-        DateTime? startsAt,
-        DateTime? expiresAt,
-        string? status = null)
+        string? messageHtml,
+        string? status)
     {
         if (string.IsNullOrWhiteSpace(title))
-            return Results.BadRequest(new { message = "Informe o título do comunicado." });
+        {
+            return Results.BadRequest(new
+            {
+                message = "Informe o título do comunicado."
+            });
+        }
 
-        if (title.Length > 150)
-            return Results.BadRequest(new { message = "O título deve ter no máximo 150 caracteres." });
+        if (title.Trim().Length > 150)
+        {
+            return Results.BadRequest(new
+            {
+                message = "O título deve ter no máximo 150 caracteres."
+            });
+        }
 
-        var validTypes = new[] { "INFO", "WARNING", "MAINTENANCE", "PAUSE", "CAMPAIGN" };
-        if (string.IsNullOrWhiteSpace(type) || !validTypes.Contains(type))
-            return Results.BadRequest(new { message = "Tipo de comunicado inválido." });
+        var validTypes = new[]
+        {
+            "INFO",
+            "WARNING",
+            "MAINTENANCE",
+            "PAUSE",
+            "CAMPAIGN"
+        };
 
-        var validReasons = new[] { "MAINTENANCE", "POWER_OUTAGE", "INSTABILITY", "HOLIDAY", "EMERGENCY", "OTHER" };
-        if (!string.IsNullOrWhiteSpace(reason) && !validReasons.Contains(reason))
-            return Results.BadRequest(new { message = "Motivo do comunicado inválido." });
+        if (string.IsNullOrWhiteSpace(type) ||
+            !validTypes.Contains(type))
+        {
+            return Results.BadRequest(new
+            {
+                message = "Tipo de comunicado inválido."
+            });
+        }
 
-        if ((type == "MAINTENANCE" || type == "PAUSE") && string.IsNullOrWhiteSpace(reason))
-            return Results.BadRequest(new { message = "Informe o motivo para comunicados de manutenção ou pausa." });
+        var validStatuses = new[]
+        {
+            "ACTIVE",
+            "INACTIVE"
+        };
+
+        if (string.IsNullOrWhiteSpace(status) ||
+            !validStatuses.Contains(status))
+        {
+            return Results.BadRequest(new
+            {
+                message = "Status do comunicado inválido."
+            });
+        }
+
+        var validReasons = new[]
+        {
+            "MAINTENANCE",
+            "POWER_OUTAGE",
+            "INSTABILITY",
+            "HOLIDAY",
+            "EMERGENCY",
+            "OTHER"
+        };
+
+        if (!string.IsNullOrWhiteSpace(reason) &&
+            !validReasons.Contains(reason))
+        {
+            return Results.BadRequest(new
+            {
+                message = "Motivo do comunicado inválido."
+            });
+        }
+
+        if ((type == "MAINTENANCE" ||
+             type == "PAUSE") &&
+            string.IsNullOrWhiteSpace(reason))
+        {
+            return Results.BadRequest(new
+            {
+                message =
+                    "Informe o motivo para comunicados de manutenção ou pausa."
+            });
+        }
 
         if (priority < 0)
-            return Results.BadRequest(new { message = "A prioridade não pode ser negativa." });
+        {
+            return Results.BadRequest(new
+            {
+                message = "A prioridade não pode ser negativa."
+            });
+        }
 
         if (string.IsNullOrWhiteSpace(messageHtml))
-            return Results.BadRequest(new { message = "Informe a mensagem HTML do comunicado." });
-
-        if (startsAt.HasValue && expiresAt.HasValue && startsAt >= expiresAt)
-            return Results.BadRequest(new { message = "A data de início deve ser menor que a data de expiração." });
-
-        if (status is not null)
         {
-            var validStatuses = new[] { "ACTIVE", "INACTIVE", "EXPIRED" };
-            if (string.IsNullOrWhiteSpace(status) || !validStatuses.Contains(status))
-                return Results.BadRequest(new { message = "Status do comunicado inválido." });
+            return Results.BadRequest(new
+            {
+                message = "Informe a mensagem do comunicado."
+            });
         }
 
         return null;
     }
+
+    public record ExtendBotAnnouncementRequest(
+        DateTime ExpiresAt
+    );
 }
