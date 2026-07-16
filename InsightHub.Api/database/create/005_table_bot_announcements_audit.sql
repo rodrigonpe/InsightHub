@@ -4,7 +4,7 @@ CREATE TABLE bot_announcements_audit (
     announcement_id UUID NOT NULL,
 
     action announcement_action NOT NULL,
-	-- CREATED
+	 -- CREATED
     -- UPDATED
     -- ACTIVATED
     -- DEACTIVATED

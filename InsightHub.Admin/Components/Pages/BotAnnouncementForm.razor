@@ -111,15 +111,19 @@
         </div>
     </div>
 
-<div class="row">
-    <div class="col-md-7">
-        <div class="card">
-            <div class="card-header">Mensagem</div>
+<div class="row g-3 align-items-stretch">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header">
+                Mensagem
+            </div>
 
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">Mensagem HTML</label>
-                    <RichTextEditor @bind-Content="Model.MessageHtml"
+
+                    <RichTextEditor
+                        @bind-Content="Model.MessageHtml"
                         @bind-Text="Model.MessageText"
                         ToolbarOptions="@ToolbarOptions.BasicToolbarOptions"
                         Theme="@QuillTheme.Snow" />
@@ -128,25 +132,68 @@
         </div>
     </div>
 
-    <div class="col-md-5">
-        <div class="card">
-            <div class="card-header">
-                Pré-visualização
+    <div class="col-lg-5">
+        <div class="card preview-card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <span class="preview-icon">💬</span>
+
+                <div>
+                    <div class="fw-semibold">Pré-visualização</div>
+                    <small class="text-muted">
+                        Simulação da mensagem recebida pelo cliente
+                    </small>
+                </div>
             </div>
 
-            <div class="card-body">
-                @if (string.IsNullOrWhiteSpace(Model.MessageHtml))
-                {
-                    <div class="text-muted">
-                        A pré-visualização aparecerá aqui conforme você preencher a mensagem HTML.
+            <div class="card-body p-0">
+                <div class="whatsapp-preview">
+                    <div class="whatsapp-header">
+                        <div class="bot-avatar">
+                            <span>EW</span>
+                        </div>
+
+                        <div class="bot-information">
+                            <strong>Escolaweb</strong>
+                            <small>Atendimento virtual</small>
+                        </div>
                     </div>
-                }
-                else
-                {
-                    <div class="border rounded p-3 bg-light">
-                        @((MarkupString)Model.MessageHtml)
+
+                    <div class="whatsapp-conversation">
+                        @if (string.IsNullOrWhiteSpace(Model.MessageHtml))
+                        {
+                            <div class="whatsapp-empty-state">
+                                <span class="empty-icon">✍️</span>
+
+                                <div>
+                                    Digite a mensagem no editor para visualizar
+                                    como ela será apresentada ao cliente.
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="message-row">
+                                <div class="message-bubble incoming-message">
+                                    <div class="message-content">
+                                        @((MarkupString)Model.MessageHtml)
+                                    </div>
+
+                                    <div class="message-metadata">
+                                        <span>@DateTime.Now.ToString("HH:mm")</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (Model.StopBot)
+                            {
+                                <div class="flow-warning">
+                                    <span>⚠️</span>
+                                    Este comunicado interromperá o atendimento.
+                                </div>
+                            }
+                        }
                     </div>
-                }
+                </div>
             </div>
         </div>
     </div>

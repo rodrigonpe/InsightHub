@@ -52,7 +52,17 @@ CREATE TABLE bot_announcements (
     -- instability
     -- holiday
     -- emergency
-
+    
+	 priority SMALLINT NOT NULL DEFAULT 10,
+    -- 100 = Emergência / Pausa
+    --  90 = Manutenção
+    --  80 = Instabilidade grave
+    --  70 = Aviso operacional
+    --  50 = Grupo específico
+    --  20 = Campanha
+    --  10 = Informativo
+    --   0 = Padrão
+    
     stop_bot BOOLEAN NOT NULL DEFAULT FALSE,
 
     message_html TEXT NOT NULL,

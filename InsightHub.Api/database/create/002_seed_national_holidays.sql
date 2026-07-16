@@ -1,12 +1,14 @@
 INSERT INTO users (
     id,
     name,
-    email
+    email,
+    password_hash
 )
 VALUES (
     'bebc9d2b-b497-4a69-8823-2c525d65adbd',
     'Administrador',
-    'rodrigo.nunes@insighthub.local'
+    'rodrigo.nunes@insighthub.local',
+    '$2a$11$8B9HY0oOmbzVh/I.dZe0duMlLO1ufh8PUrgKo0/rfmjqrOhR2CfvC'
 );
 
 SELECT * FROM users;
