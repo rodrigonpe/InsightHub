@@ -5,6 +5,9 @@ COPY . .
 
 RUN dotnet restore InsightHub.csproj
 RUN dotnet publish InsightHub.csproj -c Release -o /app/publish
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
