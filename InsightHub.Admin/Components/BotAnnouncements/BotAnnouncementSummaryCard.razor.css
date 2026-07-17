@@ -1,0 +1,49 @@
+.summary-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 94px;
+    padding: 1rem 1.1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 0.3rem 1rem rgba(15, 23, 42, 0.04);
+}
+
+.summary-card > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.summary-card strong {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.summary-card small {
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+
+.summary-label {
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.summary-live {
+    border-left: 4px solid #22c55e;
+}
+
+.summary-scheduled {
+    border-left: 4px solid #3b82f6;
+}
+
+.summary-expired {
+    border-left: 4px solid #94a3b8;
+}
+
+.summary-inactive {
+    border-left: 4px solid #ef4444;
+}

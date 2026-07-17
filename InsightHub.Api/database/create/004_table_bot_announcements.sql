@@ -53,15 +53,8 @@ CREATE TABLE bot_announcements (
     -- holiday
     -- emergency
     
-	 priority SMALLINT NOT NULL DEFAULT 10,
-    -- 100 = Emergência / Pausa
-    --  90 = Manutenção
-    --  80 = Instabilidade grave
-    --  70 = Aviso operacional
-    --  50 = Grupo específico
-    --  20 = Campanha
-    --  10 = Informativo
-    --   0 = Padrão
+	 priority SMALLINT NOT NULL DEFAULT 50,
+    -- Será um cálculo efetuado pela API, unindo announcement_type + announcement_reason
     
     stop_bot BOOLEAN NOT NULL DEFAULT FALSE,
 

@@ -1,0 +1,26 @@
+<div class="summary-card @CssClass">
+    <div>
+        <span class="summary-label">@Title</span>
+
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <small>@Description</small>
+        }
+    </div>
+
+    <strong>@Count</strong>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = string.Empty;
+}

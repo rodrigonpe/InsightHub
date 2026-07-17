@@ -1,0 +1,147 @@
+@using InsightHub.Admin.Models
+
+<article class="announcement-card state-@VisualState">
+    <div class="announcement-card-header">
+        <div class="announcement-title-area">
+            <span class="type-badge">
+                @GetTypeLabel(Item.Type)
+            </span>
+
+            @if (Item.StopBot)
+            {
+                <span class="stop-badge">
+                    Interrompe atendimento
+                </span>
+            }
+        </div>
+
+        <span class="priority-label">
+            Prioridade @Item.Priority
+        </span>
+    </div>
+
+    <div class="announcement-card-body">
+        <h5>@Item.Title</h5>
+
+        @if (!string.IsNullOrWhiteSpace(Item.Reason))
+        {
+            <div class="announcement-reason">
+                @GetReasonLabel(Item.Reason)
+            </div>
+        }
+
+        <div class="announcement-dates">
+            <div>
+                <span>Início</span>
+                <strong>@FormatDate(Item.StartsAt)</strong>
+            </div>
+
+            <div>
+                <span>Expiração</span>
+                <strong>@FormatDate(Item.ExpiresAt, "Sem prazo")</strong>
+            </div>
+        </div>
+
+        @if (Item.SourceAnnouncementId.HasValue)
+        {
+            <div class="reused-info">
+                Reutilizado de outro comunicado
+            </div>
+        }
+    </div>
+
+    <div class="announcement-card-footer">
+        @if (CanEdit)
+        {
+            <a class="btn btn-sm btn-outline-primary"
+               href="/bot-announcements/@Item.Id">
+                Editar
+            </a>
+        }
+        else
+        {
+            <a class="btn btn-sm btn-outline-secondary"
+               href="/bot-announcements/@Item.Id">
+                Visualizar
+            </a>
+        }
+
+        @if (CanExtend)
+        {
+            <button type="button"
+                    class="btn btn-sm btn-outline-success"
+                    @onclick="HandleExtend">
+                Estender
+            </button>
+        }
+
+        @if (CanReuse)
+        {
+            <a class="btn btn-sm btn-outline-warning"
+               href="/bot-announcements/new?reuseId=@Item.Id">
+                Reutilizar
+            </a>
+        }
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public BotAnnouncementListItem Item { get; set; } = new();
+
+    [Parameter]
+    public string VisualState { get; set; } = "default";
+
+    [Parameter]
+    public bool CanEdit { get; set; }
+
+    [Parameter]
+    public bool CanExtend { get; set; }
+
+    [Parameter]
+    public bool CanReuse { get; set; }
+
+    [Parameter]
+    public EventCallback<BotAnnouncementListItem> OnExtend { get; set; }
+
+    private Task HandleExtend()
+    {
+        return OnExtend.InvokeAsync(Item);
+    }
+
+    private static string FormatDate(
+        DateTime? value,
+        string emptyText = "-")
+    {
+        return value.HasValue
+            ? value.Value.ToString("dd/MM/yyyy HH:mm")
+            : emptyText;
+    }
+
+    private static string GetTypeLabel(string type)
+    {
+        return type switch
+        {
+            "INFO" => "Informativo",
+            "WARNING" => "Aviso",
+            "MAINTENANCE" => "Manutenção",
+            "PAUSE" => "Pausa",
+            "CAMPAIGN" => "Campanha",
+            _ => type
+        };
+    }
+
+    private static string GetReasonLabel(string reason)
+    {
+        return reason switch
+        {
+            "MAINTENANCE" => "Manutenção",
+            "POWER_OUTAGE" => "Falta de energia",
+            "INSTABILITY" => "Instabilidade",
+            "HOLIDAY" => "Feriado",
+            "EMERGENCY" => "Emergência",
+            "OTHER" => "Outros",
+            _ => reason
+        };
+    }
+}

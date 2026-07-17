@@ -1,0 +1,139 @@
+.announcement-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 245px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.05);
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.announcement-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.65rem 1.5rem rgba(15, 23, 42, 0.08);
+}
+
+.state-live {
+    border-top: 3px solid #22c55e;
+}
+
+.state-scheduled {
+    border-top: 3px solid #3b82f6;
+}
+
+.state-expired {
+    border-top: 3px solid #94a3b8;
+}
+
+.state-inactive {
+    border-top: 3px solid #ef4444;
+}
+
+.announcement-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.announcement-title-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.type-badge,
+.stop-badge,
+.priority-label {
+    padding: 0.23rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.type-badge {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.stop-badge {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.priority-label {
+    flex-shrink: 0;
+    background: #f8fafc;
+    color: #64748b;
+}
+
+.announcement-card-body {
+    flex: 1;
+    padding: 1rem;
+}
+
+.announcement-card-body h5 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.announcement-reason {
+    margin-bottom: 0.9rem;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.announcement-dates {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.announcement-dates div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.65rem;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+}
+
+.announcement-dates span {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.announcement-dates strong {
+    color: #1e293b;
+    font-size: 0.8rem;
+}
+
+.reused-info {
+    margin-top: 0.75rem;
+    color: #64748b;
+    font-size: 0.74rem;
+}
+
+.announcement-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid #f1f5f9;
+    background: #fcfcfd;
+}
+
+@media (max-width: 575.98px) {
+    .announcement-dates {
+        grid-template-columns: 1fr;
+    }
+}
