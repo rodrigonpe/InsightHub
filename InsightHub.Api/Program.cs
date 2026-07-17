@@ -3,6 +3,7 @@ using InsightHub.Api.Services.Movidesk;
 using InsightHub.Api.Models.Requests;
 using InsightHub.Api.Validators;
 using InsightHub.Api.Services.BotAnnouncements;
+using InsightHub.Api.Formatters;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -18,6 +19,7 @@ internal class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        builder.Services.AddSingleton<AltuHtmlMessageFormatter>();
         builder.Services.AddEndpointsApiExplorer();
         
         builder.Services.Configure<MovideskOptions>(
@@ -1751,7 +1753,7 @@ internal class Program
         })
         .WithTags("Bot - Announcements")
         .RequireAuthorization();
-        app.MapGet("/bot/announcements/active", async (IConfiguration config) =>
+        app.MapGet("/bot/announcements/active", async (IConfiguration config, AltuHtmlMessageFormatter htmlFormatter) =>
         {
             var connectionString = config.GetConnectionString("DefaultConnection");
 
@@ -1778,7 +1780,6 @@ internal class Program
             ";
 
             await using var command = new NpgsqlCommand(sql, connection);
-
             await using var reader = await command.ExecuteReaderAsync();
 
             if (!await reader.ReadAsync())
@@ -1786,27 +1787,52 @@ internal class Program
                 return Results.Ok(new
                 {
                     hasAnnouncement = false,
+                    type = (string?)null,
+                    reason = (string?)null,
                     stopBot = false,
                     messageHtml = (string?)null,
-                    messageText = (string?)null
+                    messageText = (string?)null,
+                    expiresAt = (DateTime?)null
                 });
             }
+
+            var messageHtmlOrdinal = reader.GetOrdinal("message_html");
+
+            var originalMessageHtml = reader.IsDBNull(messageHtmlOrdinal)
+                ? null
+                : reader.GetString(messageHtmlOrdinal);
+
+            var messageHtmlForAltu = htmlFormatter.Format(originalMessageHtml);
 
             return Results.Ok(new
             {
                 hasAnnouncement = true,
-                type = reader.GetString(reader.GetOrdinal("type")),
-                reason = reader.IsDBNull(reader.GetOrdinal("reason"))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal("reason")),
-                stopBot = reader.GetBoolean(reader.GetOrdinal("stop_bot")),
-                messageHtml = reader.GetString(reader.GetOrdinal("message_html")),
-                messageText = reader.IsDBNull(reader.GetOrdinal("message_text"))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal("message_text")),
-                expiresAt = reader.IsDBNull(reader.GetOrdinal("expires_at"))
-                    ? (DateTime?)null
-                    : reader.GetDateTime(reader.GetOrdinal("expires_at"))
+
+                type = reader.GetString(
+                    reader.GetOrdinal("type")),
+
+                reason = reader.IsDBNull(
+                    reader.GetOrdinal("reason"))
+                        ? null
+                        : reader.GetString(
+                            reader.GetOrdinal("reason")),
+
+                stopBot = reader.GetBoolean(
+                    reader.GetOrdinal("stop_bot")),
+
+                messageHtml = messageHtmlForAltu,
+
+                messageText = reader.IsDBNull(
+                    reader.GetOrdinal("message_text"))
+                        ? null
+                        : reader.GetString(
+                            reader.GetOrdinal("message_text")),
+
+                expiresAt = reader.IsDBNull(
+                    reader.GetOrdinal("expires_at"))
+                        ? (DateTime?)null
+                        : reader.GetDateTime(
+                            reader.GetOrdinal("expires_at"))
             });
         })
         .WithTags("Bot - Announcements");
