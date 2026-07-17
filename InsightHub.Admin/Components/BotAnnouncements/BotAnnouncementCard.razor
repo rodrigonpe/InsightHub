@@ -15,8 +15,10 @@
             }
         </div>
 
-        <span class="priority-label">
-            Prioridade @Item.Priority
+        <span class="priority-badge @GetPriorityCssClass(Item.Priority)"
+            title="Prioridade automática: @GetPriorityLabel(Item.Priority)">
+            <span class="priority-dot" aria-hidden="true"></span>
+            @GetPriorityLabel(Item.Priority)
         </span>
     </div>
 
@@ -131,7 +133,29 @@
         };
     }
 
-    private static string GetReasonLabel(string reason)
+    private static string GetPriorityLabel(int priority)
+    {
+        return priority switch
+        {
+            >= 100 => "Crítica",
+            >= 75 => "Alta",
+            >= 50 => "Normal",
+            _ => "Baixa"
+        };
+    }
+
+    private static string GetPriorityCssClass(int priority)
+    {
+        return priority switch
+        {
+            >= 100 => "priority-critical",
+            >= 75 => "priority-high",
+            >= 50 => "priority-normal",
+            _ => "priority-low"
+        };
+    }
+
+    private static string GetReasonLabel(string? reason)
     {
         return reason switch
         {
@@ -141,6 +165,7 @@
             "HOLIDAY" => "Feriado",
             "EMERGENCY" => "Emergência",
             "OTHER" => "Outros",
+            null or "" => "Não informado",
             _ => reason
         };
     }

@@ -2,6 +2,7 @@ using InsightHub.Services;
 using InsightHub.Api.Services.Movidesk;
 using InsightHub.Api.Models.Requests;
 using InsightHub.Api.Validators;
+using InsightHub.Api.Services.BotAnnouncements;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -1529,13 +1530,24 @@ internal class Program
                 request.Title,
                 request.Type,
                 request.Reason,
-                request.Priority,
                 request.MessageHtml,
                 "ACTIVE");
 
             if (fieldValidation is not null)
             {
                 return fieldValidation;
+            }
+
+            if (!AnnouncementPolicy.TryResolvePriority(
+                    request.Type,
+                    request.Reason,
+                    out var priority,
+                    out var priorityError))
+            {
+                return Results.BadRequest(new
+                {
+                    message = priorityError
+                });
             }
 
             var now = DateTime.Now;
@@ -1653,7 +1665,7 @@ internal class Program
                 insertCommand.Parameters.Add("reason", NpgsqlDbType.Text).Value =
                     string.IsNullOrWhiteSpace(request.Reason) ? DBNull.Value : request.Reason;
 
-                insertCommand.Parameters.AddWithValue("priority", request.Priority);
+                insertCommand.Parameters.AddWithValue("priority", priority);
                 insertCommand.Parameters.AddWithValue("stopBot", request.StopBot);
                 insertCommand.Parameters.AddWithValue("messageHtml", request.MessageHtml);
 
@@ -1682,7 +1694,7 @@ internal class Program
                     request.Type,
                     Status = "ACTIVE",
                     request.Reason,
-                    request.Priority,
+                    priority,
                     request.StopBot,
                     request.MessageHtml,
                     request.MessageText,
@@ -1973,13 +1985,24 @@ internal class Program
                 request.Title,
                 request.Type,
                 request.Reason,
-                request.Priority,
                 request.MessageHtml,
                 request.Status);
 
             if (fieldValidation is not null)
             {
                 return fieldValidation;
+            }
+
+            if (!AnnouncementPolicy.TryResolvePriority(
+                    request.Type,
+                    request.Reason,
+                    out var priority,
+                    out var priorityError))
+            {
+                return Results.BadRequest(new
+                {
+                    message = priorityError
+                });
             }
 
             var connectionString =
@@ -2246,7 +2269,7 @@ internal class Program
 
                 updateCommand.Parameters.AddWithValue(
                     "priority",
-                    request.Priority);
+                    priority);
 
                 updateCommand.Parameters.AddWithValue(
                     "stopBot",
@@ -2298,7 +2321,7 @@ internal class Program
                         ? null
                         : request.Reason,
 
-                    priority = request.Priority,
+                    priority = priority,
                     stopBot = request.StopBot,
                     messageHtml = request.MessageHtml,
 
@@ -3450,7 +3473,6 @@ internal class Program
         string Title,
         string Type,
         string? Reason,
-        int Priority,
         bool StopBot,
         string MessageHtml,
         string? MessageText,
@@ -3462,7 +3484,6 @@ internal class Program
         string Title,
         string Type,
         string? Reason,
-        int Priority,
         bool StopBot,
         string MessageHtml,
         string? MessageText,
@@ -3474,7 +3495,6 @@ internal class Program
         string? title,
         string? type,
         string? reason,
-        int priority,
         string? messageHtml,
         string? status)
     {
@@ -3557,13 +3577,6 @@ internal class Program
             });
         }
 
-        if (priority < 0)
-        {
-            return Results.BadRequest(new
-            {
-                message = "A prioridade não pode ser negativa."
-            });
-        }
 
         if (string.IsNullOrWhiteSpace(messageHtml))
         {

@@ -50,7 +50,7 @@
 
 .type-badge,
 .stop-badge,
-.priority-label {
+.priority-badge {
     padding: 0.23rem 0.5rem;
     border-radius: 999px;
     font-size: 0.68rem;
@@ -67,10 +67,44 @@
     color: #991b1b;
 }
 
-.priority-label {
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
     flex-shrink: 0;
+    border: 1px solid transparent;
+}
+
+.priority-dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background-color: currentColor;
+}
+
+.priority-critical {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.priority-high {
+    color: #9a3412;
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.priority-normal {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.priority-low {
+    color: #475569;
     background: #f8fafc;
-    color: #64748b;
+    border-color: #cbd5e1;
 }
 
 .announcement-card-body {

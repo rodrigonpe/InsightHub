@@ -198,3 +198,46 @@
     .whatsapp-conversation {
         min-height: 300px;
     }
+/* ==========================================
+   Prioridade do comunicado
+========================================== */
+
+.priority-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background: #f8f9fa;
+}
+
+.priority-dot {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    flex: 0 0 0.75rem;
+    border-radius: 50%;
+}
+
+.priority-critical {
+    background: #dc3545;
+}
+
+.priority-high {
+    background: #fd7e14;
+}
+
+.priority-normal {
+    background: #0d6efd;
+}
+
+.priority-low {
+    background: #6c757d;
+}
+
+.priority-description {
+    margin-top: 0.2rem;
+    color: #6c757d;
+    font-size: 0.82rem;
+}

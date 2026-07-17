@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Authorization
+@using InsightHub.Admin.Services.BotAnnouncements
 
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
@@ -88,7 +89,8 @@
                             <label class="form-label">Tipo</label>
 
                             <InputSelect class="form-select"
-                                         @bind-Value="Model.Type">
+                                         @bind-Value="Model.Type"
+                                         @bind-Value:after="HandleTypeChanged">
                                 <option value="INFO">Informativo</option>
                                 <option value="WARNING">Aviso</option>
                                 <option value="MAINTENANCE">Manutenção</option>
@@ -101,22 +103,44 @@
                             <label class="form-label">Motivo</label>
 
                             <InputSelect class="form-select"
-                                         @bind-Value="Model.Reason">
+                                         @bind-Value="Model.Reason"
+                                         @bind-Value:after="HandleReasonChanged"
+                                         disabled="@(!AllowedReasons.Any())">
                                 <option value="">Selecione...</option>
-                                <option value="MAINTENANCE">Manutenção</option>
-                                <option value="POWER_OUTAGE">Falta de energia</option>
-                                <option value="INSTABILITY">Instabilidade</option>
-                                <option value="HOLIDAY">Feriado</option>
-                                <option value="EMERGENCY">Emergência</option>
-                                <option value="OTHER">Outros</option>
+
+                                @foreach (var reason in AllowedReasons)
+                                {
+                                    <option value="@reason.Value">
+                                        @reason.Label — @reason.PriorityLabel
+                                    </option>
+                                }
                             </InputSelect>
+
+                            @if (!AllowedReasons.Any())
+                            {
+                                <div class="form-text">
+                                    Selecione um tipo para visualizar os motivos disponíveis.
+                                </div>
+                            }
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Prioridade</label>
-                            <InputNumber class="form-control"
-                                         @bind-Value="Model.Priority" />
-                        </div>
+                        @if (SelectedReason is not null)
+                        {
+                            <div class="priority-preview mb-3">
+                                <span class="priority-dot @SelectedReason.CssClass"></span>
+
+                                <div>
+                                    <div>
+                                        Prioridade automática:
+                                        <strong>@SelectedReason.PriorityLabel</strong>
+                                    </div>
+
+                                    <div class="priority-description">
+                                        Definida automaticamente conforme o tipo e o motivo do comunicado.
+                                    </div>
+                                </div>
+                            </div>
+                        }
 
                         <div class="mb-3">
                             <label class="form-label">Status</label>
@@ -315,6 +339,12 @@
     private BotAnnouncementModel Model = new();
     private string? errorMessage;
 
+    private IReadOnlyList<AnnouncementReasonOption> AllowedReasons { get; set; }
+        = AnnouncementUiPolicy.GetReasons("INFO");
+
+    private AnnouncementReasonOption? SelectedReason =>
+        AnnouncementUiPolicy.Find(Model.Type, Model.Reason);
+
     private bool IsNew => Id is null;
     private bool IsReusing => IsNew && ReuseId.HasValue;
 
@@ -377,6 +407,7 @@
         if (result is not null)
         {
             Model = result;
+            RefreshReasonOptions(preserveCurrentReason: true);
         }
     }
 
@@ -408,6 +439,33 @@
             StartsAt = null,
             ExpiresAt = null
         };
+
+        RefreshReasonOptions(preserveCurrentReason: true);
+    }
+
+    private void HandleTypeChanged()
+    {
+        RefreshReasonOptions(preserveCurrentReason: false);
+    }
+
+    private void HandleReasonChanged()
+    {
+        Model.Priority = SelectedReason?.Priority ?? 0;
+    }
+
+    private void RefreshReasonOptions(bool preserveCurrentReason)
+    {
+        AllowedReasons = AnnouncementUiPolicy.GetReasons(Model.Type);
+
+        var currentReasonIsAllowed = AllowedReasons.Any(option =>
+            option.Value.Equals(Model.Reason, StringComparison.OrdinalIgnoreCase));
+
+        if (!preserveCurrentReason || !currentReasonIsAllowed)
+        {
+            Model.Reason = null;
+        }
+
+        Model.Priority = SelectedReason?.Priority ?? 0;
     }
 
     private async Task Save()
@@ -455,23 +513,57 @@
             return;
         }
 
+        if (SelectedReason is null)
+        {
+            errorMessage =
+                "Selecione um motivo válido para o tipo de comunicado informado.";
+
+            return;
+        }
+
         try
         {
             HttpResponseMessage response;
 
             if (IsNew)
             {
+                var createRequest = new
+                {
+                    Model.SourceAnnouncementId,
+                    Model.Title,
+                    Model.Type,
+                    Model.Reason,
+                    Model.StopBot,
+                    Model.MessageHtml,
+                    Model.MessageText,
+                    Model.StartsAt,
+                    Model.ExpiresAt
+                };
+
                 response =
                     await Http.PostAsJsonAsync(
                         "/bot/announcements",
-                        Model);
+                        createRequest);
             }
             else
             {
+                var updateRequest = new
+                {
+                    Model.Title,
+                    Model.Type,
+                    Model.Status,
+                    Model.Reason,
+                    Model.StopBot,
+                    Model.MessageHtml,
+                    Model.MessageText,
+                    Model.StartsAt,
+                    Model.ExpiresAt
+                };
+
                 response =
                     await Http.PutAsJsonAsync(
                         $"/bot/announcements/{Id}",
-                        Model);
+                        updateRequest);
             }
 
             if (!response.IsSuccessStatusCode)
