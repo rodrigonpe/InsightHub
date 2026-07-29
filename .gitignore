@@ -49,8 +49,8 @@ docker-compose.override.yml
 *.sql
 
 # Permitir scripts SQL da API
-!InsightHub.Api/database/
-!InsightHub.Api/database/**/*.sql
+!InsightHub.Api/Database/
+!InsightHub.Api/Database/**/*.sql
 
 # OS
 .DS_Store
