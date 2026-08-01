@@ -1,4 +1,4 @@
-namespace InsightHub.Api.Services.Movidesk;
+namespace InsightHub.Api.Services.Providers.Movidesk;
 
 public class MovideskOptions
 {

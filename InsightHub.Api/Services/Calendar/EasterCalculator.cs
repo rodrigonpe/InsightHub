@@ -1,4 +1,4 @@
-namespace InsightHub.Services;
+namespace InsightHub.Api.Services.Calendar;
 public static class EasterCalculator
 {
     public static DateOnly CalculateEaster(int year)

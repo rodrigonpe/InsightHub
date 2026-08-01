@@ -1,9 +1,9 @@
 using System.Text.Json;
 using InsightHub.Api.Models.Providers;
-using InsightHub.Api.Services.Movidesk.Dtos;
+using InsightHub.Api.Services.Providers.Movidesk.Dtos;
 using Microsoft.Extensions.Options;
 
-namespace InsightHub.Api.Services.Movidesk;
+namespace InsightHub.Api.Services.Providers.Movidesk;
 
 public class MovideskClient
 {

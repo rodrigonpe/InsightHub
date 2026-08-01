@@ -1,4 +1,4 @@
-namespace InsightHub.Api.Services.Movidesk.Dtos;
+namespace InsightHub.Api.Services.Providers.Movidesk.Dtos;
 
 public class MovideskTicketDto
 {

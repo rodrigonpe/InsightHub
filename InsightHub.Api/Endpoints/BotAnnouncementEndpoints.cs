@@ -485,7 +485,7 @@ public static class BotAnnouncementEndpoints
         })
         .WithTags("Bot - Announcements")
         /*.RequireAuthorization()*/;
-        app.MapPut("/bot/announcements/{id:guid}", async (Guid id, UpdateBotAnnouncementRequest request, IConfiguration configClaimsPrincipal user) =>
+        app.MapPut("/bot/announcements/{id:guid}", async (Guid id, UpdateBotAnnouncementRequest request, IConfiguration config, ClaimsPrincipal user) =>
         {
             var userIdClaim = user.FindFirst("sub")?.Value
                 ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -1677,7 +1677,7 @@ public static class BotAnnouncementEndpoints
         
         return app;
     }
-        public record CreateBotAnnouncementRequest(
+    public record CreateBotAnnouncementRequest(
         string Title,
         string Type,
         string? Reason,

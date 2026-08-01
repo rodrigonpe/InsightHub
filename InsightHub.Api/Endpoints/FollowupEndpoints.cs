@@ -1,4 +1,4 @@
-using InsightHub.Api.Services.Movidesk;
+using InsightHub.Api.Services.Providers.Movidesk;
 using Npgsql;
 public static class FollowupEndpoints
 {

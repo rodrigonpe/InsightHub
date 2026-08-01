@@ -1,4 +1,4 @@
-namespace InsightHub.Services;
+namespace InsightHub.Api.Services.Calendar;
 public static class MovableHolidaysCalculator
 {
     public static List<MovableHoliday> GetMovableHolidays(int year)
