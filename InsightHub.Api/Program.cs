@@ -1,6 +1,7 @@
-using InsightHub.Api.Services.Providers.Movidesk;
-using InsightHub.Api.Models.Requests;
-using InsightHub.Api.Formatters;
+using InsightHub.Api.Followup.Providers.Movidesk;
+using InsightHub.Api.BotAnnouncements.Services;
+using InsightHub.Api.BusinessCalendar.Services;
+using InsightHub.Api.Infrastructure.Authentication.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -23,6 +24,8 @@ internal class Program
         builder.Configuration.GetSection("Movidesk"));
 
         builder.Services.AddHttpClient<MovideskClient>();
+
+        builder.Services.AddScoped<HolidayService>();
 
         builder.Services.AddSwaggerGen(options =>
         {
