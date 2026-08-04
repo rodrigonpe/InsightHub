@@ -1,6 +1,7 @@
 using InsightHub.Api.BusinessCalendar.Models;
+using InsightHub.Api.BusinessCalendar.Services;
 
-namespace InsightHub.Api.BusinessCalendar.Services;
+namespace InsightHub.Api.Attendance.Services;
 
 public class BusinessCalendarService
 {

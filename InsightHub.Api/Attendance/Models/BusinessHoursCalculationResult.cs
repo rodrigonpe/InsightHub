@@ -1,5 +1,3 @@
-namespace InsightHub.Api.Services.BusinessTime;
-
 public class BusinessHoursCalculationResult
 {
     public decimal TotalBusinessHours { get; set; }
@@ -9,4 +7,12 @@ public class BusinessHoursCalculationResult
     public int BusinessDays { get; set; }
 
     public int NonBusinessDays { get; set; }
+
+    public DateTime StartDate { get; set; }
+
+    public DateTime EndDate { get; set; }
+
+    public bool IsBusinessDay { get; set; }
+
+    public string? Reason { get; set; }
 }

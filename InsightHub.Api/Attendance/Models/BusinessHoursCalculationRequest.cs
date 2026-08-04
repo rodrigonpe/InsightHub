@@ -1,4 +1,4 @@
-namespace InsightHub.Api.Services.BusinessTime;
+namespace InsightHub.Api.Attendance.Models;
 
 public class BusinessHoursCalculationRequest
 {
